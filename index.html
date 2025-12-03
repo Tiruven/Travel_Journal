@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>AR Travel Journal</title>
+
+    <!-- Leaflet CSS for mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/map.css">
+    <link rel="stylesheet" href="css/ui-components.css">
+    <link rel="stylesheet" href="css/themes.css">
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="theme-day">
+    <script>
+        // Check authentication before loading the app
+        (function () {
+            const savedUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+            const isAuthPage = window.location.pathname.includes('login.html') ||
+                window.location.pathname.includes('register.html');
+
+            if (!savedUser && !isAuthPage) {
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
+
+    <!-- GPS Permission Alert -->
+    <div id="gps-permission-alert" class="permission-alert hidden">
+        <div class="alert-content">
+            <i class="fas fa-map-marker-alt"></i>
+            <h3>Location Access Required</h3>
+            <p>This app needs your location to track your journey and show nearby hotspots.</p>
+            <button onclick="requestLocationPermission()" class="save-btn">Enable Location</button>
+            <button onclick="document.getElementById('gps-permission-alert').classList.add('hidden')"
+                class="retake-btn">Maybe Later</button>
+        </div>
+    </div>
+
+    <!-- Top Bar: Weather & Stats -->
+    <div id="top-bar" class="top-bar">
+        <div class="weather-widget">
+            <span id="temperature">--°C</span>
+            <i id="weather-icon" class="fas fa-cloud"></i>
+            <span id="wind-speed" class="wind-indicator">-- km/h</span>
+        </div>
+
+        <button id="suggested-route-btn" class="suggested-route-btn">
+            <i class="fas fa-route"></i> Suggested Route
+        </button>
+
+        <div class="quick-stats">
+            <span id="uv-index" class="uv-indicator">UV: --</span>
+            <span id="rain-prob" class="rain-indicator">
+                <i class="fas fa-umbrella"></i> --%
+            </span>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- User Avatar & Compass Indicator -->
+    <div id="user-avatar" class="user-avatar">
+        <div class="compass-radar">
+            <div class="radar-blip" data-direction="north"></div>
+            <div class="radar-blip" data-direction="east"></div>
+            <div class="radar-blip" data-direction="south"></div>
+            <div class="radar-blip" data-direction="west"></div>
+        </div>
+        <i class="fas fa-street-view"></i>
+    </div>
+
+    <!-- Category Filters (Expandable) -->
+    <div id="category-filters" class="category-filters-container">
+        <button class="filter-toggle-btn">
+            <i class="fas fa-filter"></i>
+        </button>
+        <div class="filters-menu hidden">
+            <button class="filter-btn active" data-category="all">
+                <i class="fas fa-globe"></i>
+                <span>All</span>
+            </button>
+            <button class="filter-btn" data-category="tourism">
+                <i class="fas fa-camera"></i>
+                <span>Tourism</span>
+            </button>
+            <button class="filter-btn" data-category="entertainment">
+                <i class="fas fa-theater-masks"></i>
+                <span>Entertainment</span>
+            </button>
+            <button class="filter-btn" data-category="beach">
+                <i class="fas fa-umbrella-beach"></i>
+                <span>Beach</span>
+            </button>
+            <button class="filter-btn" data-category="catering">
+                <i class="fas fa-utensils"></i>
+                <span>Food & Drinks</span>
+            </button>
+            <button class="filter-btn" data-category="natural">
+                <i class="fas fa-tree"></i>
+                <span>Nature</span>
+            </button>
+            <button class="filter-btn" data-category="accommodation">
+                <i class="fas fa-hotel"></i>
+                <span>Hotels</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Action Button (Center) -->
+    <div id="main-action-btn" class="main-action-btn">
+        <div class="action-menu hidden">
+            <button class="action-btn" data-action="photo">
+                <i class="fas fa-camera"></i>
+                <span>Photo</span>
+            </button>
+            <button class="action-btn" data-action="audio">
+                <i class="fas fa-microphone"></i>
+                <span>Audio</span>
+            </button>
+            <button class="action-btn" data-action="text">
+                <i class="fas fa-pencil-alt"></i>
+                <span>Note</span>
+            </button>
+            <button class="action-btn" data-action="memory-orbs">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Memory Orbs</span>
+            </button>
+            <button class="action-btn" data-action="storage">
+                <i class="fas fa-folder"></i>
+                <span>Storage</span>
+            </button>
+            <button class="action-btn" data-action="explore">
+                <i class="fas fa-compass"></i>
+                <span>Explore</span>
+            </button>
+        </div>
+        <button class="main-circle-btn">
+            <i class="fas fa-plus"></i>
+        </button>
+    </div>
+
+    <!-- Bottom Stats Bar -->
+    <div id="bottom-bar" class="bottom-bar">
+        <div class="stat-item">
+            <i class="fas fa-shoe-prints"></i>
+            <span id="step-count">0</span> steps
+        </div>
+        <div class="stat-item">
+            <i class="fas fa-route"></i>
+            <span id="distance-traveled">0.0</span> km
+        </div>
+        <div class="stat-item">
+            <i class="fas fa-trophy"></i>
+            <span id="user-level">Lv. 1</span>
+        </div>
+        <button id="stats-btn" class="stat-btn">
+            <i class="fas fa-chart-line"></i>
+        </button>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Camera Modal -->
+    <div id="camera-modal" class="modal hidden">
+        <div class="modal-content camera-container">
+            <button class="close-modal">&times;</button>
+            <h2>Capture Memory</h2>
+            <video id="camera-preview" autoplay playsinline></video>
+            <canvas id="photo-canvas" style="display: none;"></canvas>
+            <div class="camera-controls">
+                <button id="switch-camera-btn" title="Switch Camera">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button id="capture-btn" class="capture-btn" title="Take Photo">
+                    <i class="fas fa-camera"></i>
+                </button>
+            </div>
+            <div id="photo-preview" class="hidden">
+                <img id="captured-image" src="" alt="Captured">
+                <input type="text" id="photo-caption" placeholder="Add a caption...">
+                <button id="save-photo-btn" class="save-btn">Save Memory</button>
+                <button id="retake-btn" class="retake-btn">Retake</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Recording Modal -->
+    <div id="audio-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="close-modal">&times;</button>
+            <h2>Record Voice Note</h2>
+            <canvas id="audio-visualizer"></canvas>
+            <div class="recording-timer">
+                <span id="recording-time">00:00</span>
+            </div>
+            <div class="audio-controls">
+                <button id="start-recording-btn" class="record-btn">
+                    <i class="fas fa-microphone"></i> Start
+                </button>
+                <button id="stop-recording-btn" class="stop-btn hidden">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+            </div>
+            <div id="audio-preview" class="hidden">
+                <audio id="recorded-audio" controls></audio>
+                <input type="text" id="audio-caption" placeholder="Add a note...">
+                <button id="save-audio-btn" class="save-btn">Save Memory</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text Note Modal -->
+    <div id="text-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="close-modal">&times;</button>
+            <h2>Write a Note</h2>
+            <textarea id="text-note" placeholder="What's on your mind?" rows="10"></textarea>
+            <button id="save-text-btn" class="save-btn">Save Memory</button>
+        </div>
+    </div>
+
+    <!-- Storage/Gallery Modal -->
+    <div id="storage-modal" class="modal hidden">
+        <div class="modal-content storage-container">
+            <button class="close-modal">&times;</button>
+            <h2>My Memories</h2>
+            <div class="storage-tabs">
+                <button class="tab-btn active" data-tab="photos">Photos</button>
+                <button class="tab-btn" data-tab="audio">Audio</button>
+                <button class="tab-btn" data-tab="notes">Notes</button>
+            </div>
+            <div id="storage-content" class="storage-grid"></div>
+        </div>
+    </div>
+
+    <!-- Stats Dashboard Modal -->
+    <div id="stats-modal" class="modal hidden">
+        <div class="modal-content stats-dashboard">
+            <button class="close-modal">&times;</button>
+            <h2>Traveler Stats</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-shoe-prints"></i>
+                    <h3>Today's Steps</h3>
+                    <p id="total-steps-today">0</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-route"></i>
+                    <h3>Distance Today</h3>
+                    <p id="distance-today">0.0 km</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-mountain"></i>
+                    <h3>Highest Altitude</h3>
+                    <p id="highest-altitude">-- m</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <h3>Places Visited</h3>
+                    <p id="places-visited">0</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-globe"></i>
+                    <h3>All-Time Distance</h3>
+                    <p id="all-time-distance">0.0 km</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-clock"></i>
+                    <h3>Time Walked Today</h3>
+                    <p id="time-walked">0h 0m</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <h3>Average Speed</h3>
+                    <p id="avg-speed">0.0 km/h</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-camera"></i>
+                    <h3>Memories Saved</h3>
+                    <p id="total-memories">0</p>
+                </div>
+            </div>
+
+            <h3>Achievements</h3>
+            <div id="achievements-list" class="achievements-list"></div>
+
+            <h3>Daily Missions</h3>
+            <div id="daily-missions" class="missions-list"></div>
+        </div>
+    </div>
+
+    <!-- Device Info Panel (Toggle) -->
+    <div id="device-info-panel" class="device-info-panel hidden">
+        <button class="close-panel">&times;</button>
+        <h3>Device Information</h3>
+        <div id="device-details"></div>
+    </div>
+
+    <!-- Device Info Toggle Button -->
+    <button id="device-info-btn" class="device-info-btn">
+        <i class="fas fa-mobile-alt"></i>
+    </button>
+
+    <!-- Theme Switcher () -->
+    <div id="theme-switcher-container" class="theme-switcher-container">
+        <button class="theme-toggle-btn">
+            <i class="fas fa-palette"></i>
+        </button>
+        <div class="theme-menu hidden">
+            <button class="theme-btn" data-theme="day">
+                <i class="fas fa-sun"></i>
+                <span>Day</span>
+            </button>
+            <button class="theme-btn" data-theme="night">
+                <i class="fas fa-moon"></i>
+                <span>Night</span>
+            </button>
+            <button class="theme-btn" data-theme="ocean">
+                <i class="fas fa-water"></i>
+                <span>Ocean</span>
+            </button>
+            <button class="theme-btn" data-theme="vintage">
+                <i class="fas fa-map"></i>
+                <span>Vintage</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification-toast" class="notification-toast hidden"></div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+
+    <!-- Scripts - IMPORTANT: Load in this exact order -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Utils must load first -->
+    <script src="js/utils/helpers.js"></script>
+    <script src="js/utils/storage.js"></script>
+
+    <!-- Hardware managers -->
+    <script src="js/hardware/device-info.js"></script>
+    <script src="js/hardware/gps-tracker.js"></script>
+    <script src="js/hardware/camera-manager.js"></script>
+    <script src="js/hardware/audio-recorder.js"></script>
+    <script src="js/hardware/motion-sensors.js"></script>
+
+    <!-- Feature managers -->
+    <script src="js/features/weather-service.js"></script>
+    <script src="js/features/route-drawer.js"></script>
+    <script src="js/features/memory-manager.js"></script>
+    <script src="js/features/hotspot-manager.js"></script>
+    <script src="js/features/achievements.js"></script>
+    <script src="js/features/stats-tracker.js"></script>
+    <script src="js/features/geoapify-service.js"></script>
+
+
+    <!-- load last -->
+    <script src="js/map-manager.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/hotspots-page.js"></script>
+
+
+    <script>
+        // Debug logging
+        window.addEventListener('error', function (e) {
+            console.error('Global error:', e.error);
+        });
+
+        window.addEventListener('unhandledrejection', function (e) {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
+
+    <!-- TEMPORARY: Dev Clear Button -->
+    <button onclick="clearAllData()"
+        style="position: fixed; bottom: 10px; right: 10px; z-index: 10000; padding: 10px; background: red; color: white; border: none; border-radius: 5px; cursor: pointer;">
+        Clear & Reload
+    </button>
+
+    <script>
+        function clearAllData() {
+            if (confirm('Clear all data and fetch from Geoapify?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                // Clear IndexedDB
+                indexedDB.deleteDatabase('TravelJournalDB');
+                setTimeout(() => location.reload(), 500);
+            }
+        }
+    </script>
+</body>
+
+</html>

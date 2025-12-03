@@ -1,0 +1,88 @@
+/* Day Theme (Default) */
+.theme-day {
+    --map-filter: brightness(1);
+}
+
+.theme-day .top-bar,
+.theme-day .bottom-bar {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, transparent 100%);
+}
+
+/* Night Theme */
+.theme-night {
+    --map-filter: brightness(0.7) contrast(1.2);
+}
+
+.theme-night #map {
+    filter: var(--map-filter);
+}
+
+.theme-night .top-bar,
+.theme-night .bottom-bar {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+}
+
+.theme-night .modal-content {
+    background: #1e293b;
+    color: white;
+}
+
+.theme-night input[type="text"],
+.theme-night textarea {
+    background: #334155;
+    color: white;
+    border-color: #475569;
+}
+
+.theme-night .stat-card {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+}
+
+/* Ocean Theme */
+.theme-ocean {
+    --map-filter: sepia(0.3) hue-rotate(180deg) saturate(1.2);
+}
+
+.theme-ocean #map {
+    filter: var(--map-filter);
+}
+
+.theme-ocean .top-bar,
+.theme-ocean .bottom-bar {
+    background: linear-gradient(180deg, rgba(6, 78, 105, 0.8) 0%, transparent 100%);
+}
+
+.theme-ocean .main-circle-btn {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+}
+
+.theme-ocean .stat-card {
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+}
+
+/* Vintage Theme */
+.theme-vintage {
+    --map-filter: sepia(0.5) contrast(1.1) brightness(0.9);
+}
+
+.theme-vintage #map {
+    filter: var(--map-filter);
+}
+
+.theme-vintage .top-bar,
+.theme-vintage .bottom-bar {
+    background: linear-gradient(180deg, rgba(92, 64, 51, 0.8) 0%, transparent 100%);
+}
+
+.theme-vintage .main-circle-btn {
+    background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+}
+
+.theme-vintage .stat-card {
+    background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+}
+
+.theme-vintage .modal-content {
+    background: #fef3c7;
+    color: #78350f;
+}
