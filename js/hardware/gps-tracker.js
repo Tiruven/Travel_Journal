@@ -13,12 +13,54 @@ class GPSTracker {
         };
         this.highAccuracyOptions = {
             enableHighAccuracy: true,
-            timeout: 30000, // 30 seconds
+            timeout: 30000,
             maximumAge: 0
         };
+        
+        //Accuracy thresholds
+        this.MIN_ACCURACY = 50; // meters - reject positions with accuracy worse than this
+        this.MIN_MOVEMENT = 5; // meters - ignore movements smaller than this
+        this.lastValidPosition = null;
+        this.sessionStartTime = Date.now();
+        
+        //Detect page reload/navigation
+        this.isNewSession = true;
+        this.loadSessionState();
     }
 
-    // Start tracking
+    //Load session state to detect reloads
+    loadSessionState() {
+        const lastSession = sessionStorage.getItem('gps_session_time');
+        const now = Date.now();
+        
+        if (lastSession) {
+            const timeSinceLastSession = now - parseInt(lastSession);
+            // If less than 5 minutes, consider it same session
+            this.isNewSession = timeSinceLastSession > 300000;
+        }
+        
+        sessionStorage.setItem('gps_session_time', now.toString());
+        
+        // Clear route on new session to prevent lines across map
+        if (this.isNewSession) {
+            console.log('New GPS session detected - clearing old route data');
+            this.clearSessionRoute();
+        }
+    }
+
+    //Clear route data from previous session
+    clearSessionRoute() {
+        // Don't save route points from old sessions
+        const today = new Date().toISOString().split('T')[0];
+        const lastRouteDate = localStorage.getItem('last_route_date');
+        
+        if (lastRouteDate !== today) {
+            // New day - clear route
+            localStorage.setItem('last_route_date', today);
+            sessionStorage.removeItem('current_route_points');
+        }
+    }
+
     startTracking() {
         if (!navigator.geolocation) {
             this.triggerError('Geolocation is not supported by this browser');
@@ -29,8 +71,8 @@ class GPSTracker {
             return true;
         }
 
-        console.log('Starting GPS tracking...');
-
+        console.log('Starting GPS tracking with high accuracy...');
+        
         this.watchId = navigator.geolocation.watchPosition(
             (position) => this.handlePosition(position),
             (error) => this.handleError(error),
@@ -42,7 +84,6 @@ class GPSTracker {
         return true;
     }
 
-    // Stop tracking
     stopTracking() {
         if (this.watchId !== null) {
             navigator.geolocation.clearWatch(this.watchId);
@@ -52,7 +93,6 @@ class GPSTracker {
         }
     }
 
-    // Get current position once
     async getCurrentPosition() {
         return new Promise((resolve, reject) => {
             if (!navigator.geolocation) {
@@ -60,11 +100,18 @@ class GPSTracker {
                 return;
             }
 
-            console.log('Requesting current position...');
+            console.log('Requesting current position with high accuracy...');
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     console.log('Position obtained:', position.coords);
+                    console.log(`Accuracy: ${position.coords.accuracy}m`);
+                    
+                    // NEW: Check accuracy before accepting
+                    if (position.coords.accuracy > this.MIN_ACCURACY * 2) {
+                        console.warn(`Low accuracy (${position.coords.accuracy}m), but accepting for initial position`);
+                    }
+                    
                     this.currentPosition = {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude,
@@ -74,15 +121,17 @@ class GPSTracker {
                         speed: position.coords.speed,
                         timestamp: position.timestamp
                     };
+                    
+                    this.lastValidPosition = this.currentPosition;
                     resolve(this.currentPosition);
                 },
                 (error) => {
                     console.error('Geolocation error:', error);
                     
-                    // Provide fallback location for testing
+                    // Provide fallback location
                     const fallbackPosition = {
-                        lat: -20.2456, // Mauritius coordinates
-                        lng: 57.5012,
+                        lat: -20.2674718,
+                        lng: 57.4796981,
                         accuracy: 100,
                         altitude: null,
                         heading: null,
@@ -92,6 +141,7 @@ class GPSTracker {
                     
                     console.warn('Using fallback location:', fallbackPosition);
                     this.currentPosition = fallbackPosition;
+                    this.lastValidPosition = fallbackPosition;
                     resolve(fallbackPosition);
                 },
                 this.highAccuracyOptions
@@ -100,9 +150,7 @@ class GPSTracker {
     }
 
     handlePosition(position) {
-        this.previousPosition = this.currentPosition;
-        
-        this.currentPosition = {
+        const newPosition = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
@@ -112,12 +160,43 @@ class GPSTracker {
             timestamp: position.timestamp
         };
 
-        console.log('Position updated:', this.currentPosition);
+        //Check accuracy - reject inaccurate positions
+        if (position.coords.accuracy > this.MIN_ACCURACY) {
+            console.warn(`Position rejected - accuracy too low: ${position.coords.accuracy}m (threshold: ${this.MIN_ACCURACY}m)`);
+            // Keep using last valid position
+            return;
+        }
 
-        // Add to path
+        console.log(`Position update: Accuracy ${position.coords.accuracy}m`);
+
+        //Check if we've moved enough to record this position
+        if (this.lastValidPosition) {
+            const distance = calculateDistance(
+                this.lastValidPosition.lat,
+                this.lastValidPosition.lng,
+                newPosition.lat,
+                newPosition.lng
+            );
+
+            if (distance < this.MIN_MOVEMENT) {
+                console.log(`Movement too small (${distance.toFixed(2)}m), not recording`);
+                // Update current position but don't add to path
+                this.currentPosition = newPosition;
+                this.triggerPositionUpdate(newPosition);
+                return;
+            }
+        }
+
+        this.previousPosition = this.currentPosition;
+        this.currentPosition = newPosition;
+        this.lastValidPosition = newPosition;
+
+        console.log('Valid position recorded:', this.currentPosition);
+
+        // Add to path only if it's a valid movement
         this.path.push(this.currentPosition);
 
-        // Calculate distance from previous position
+        // Calculate distance from previous valid position
         if (this.previousPosition) {
             const distance = calculateDistance(
                 this.previousPosition.lat,
@@ -125,29 +204,49 @@ class GPSTracker {
                 this.currentPosition.lat,
                 this.currentPosition.lng
             );
-            
-            // Only add if moved more than 5 meters (to avoid GPS jitter)
-            if (distance > 5) {
+
+            if (distance > this.MIN_MOVEMENT && distance < 200) {
+                // Only add distance if it's reasonable (between 5m and 200m)
                 this.totalDistance += distance;
-                
-                // Save route point
-                storage.saveRoutePoint({
+
+                // Save route point only for significant movements
+                this.saveRoutePoint({
                     lat: this.currentPosition.lat,
                     lng: this.currentPosition.lng,
                     altitude: this.currentPosition.altitude,
                     speed: this.currentPosition.speed,
+                    accuracy: this.currentPosition.accuracy,
                     timestamp: this.currentPosition.timestamp
                 });
+            } else if (distance >= 200) {
+                console.warn(`Suspiciously large jump: ${distance.toFixed(2)}m - possibly GPS error, not recording`);
+                // Don't save this point to route
             }
         }
 
-        // Trigger callbacks
         this.triggerPositionUpdate(this.currentPosition);
+    }
+
+    //Improved route point saving
+    saveRoutePoint(point) {
+        // Save to storage
+        storage.saveRoutePoint(point);
+        
+        // Also keep in session storage for current session
+        const sessionRoute = JSON.parse(sessionStorage.getItem('current_route_points') || '[]');
+        sessionRoute.push(point);
+        
+        // Keep only last 100 points in session
+        if (sessionRoute.length > 100) {
+            sessionRoute.shift();
+        }
+        
+        sessionStorage.setItem('current_route_points', JSON.stringify(sessionRoute));
     }
 
     handleError(error) {
         let message = 'GPS error occurred';
-        
+
         switch(error.code) {
             case error.PERMISSION_DENIED:
                 message = 'GPS permission denied. Please enable location access.';
@@ -164,7 +263,6 @@ class GPSTracker {
         this.triggerError(message);
     }
 
-    // Register callbacks
     onPositionUpdate(callback) {
         this.callbacks.onPositionUpdate.push(callback);
     }
@@ -173,7 +271,6 @@ class GPSTracker {
         this.callbacks.onError.push(callback);
     }
 
-    // Trigger callbacks
     triggerPositionUpdate(position) {
         this.callbacks.onPositionUpdate.forEach(cb => {
             try {
@@ -194,7 +291,6 @@ class GPSTracker {
         });
     }
 
-    // Get tracking data
     getTrackingData() {
         return {
             currentPosition: this.currentPosition,
@@ -204,19 +300,28 @@ class GPSTracker {
         };
     }
 
-    // Calculate current speed in km/h
     getCurrentSpeed() {
         if (this.currentPosition && this.currentPosition.speed !== null) {
-            return (this.currentPosition.speed * 3.6).toFixed(1); // m/s to km/h
+            return (this.currentPosition.speed * 3.6).toFixed(1);
         }
         return 0;
     }
 
-    // Reset tracking data
     reset() {
         this.path = [];
         this.totalDistance = 0;
         this.previousPosition = null;
+    }
+
+    // NEW: Get accuracy status
+    getAccuracyStatus() {
+        if (!this.currentPosition) return 'unknown';
+        
+        const accuracy = this.currentPosition.accuracy;
+        if (accuracy <= 10) return 'excellent';
+        if (accuracy <= 20) return 'good';
+        if (accuracy <= 50) return 'fair';
+        return 'poor';
     }
 }
 

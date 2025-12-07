@@ -1,4 +1,4 @@
-// Hotspot Manager with Geoapify Integration - FIXED
+// Hotspot Manager with Auto-Reload on Location Change
 
 class HotspotManager {
     constructor() {
@@ -6,6 +6,14 @@ class HotspotManager {
         this.wishlist = [];
         this.categories = ['scenic', 'historical', 'beach', 'food', 'hidden', 'activity'];
         this.activeFilters = ['all'];
+        
+        // NEW: Track last fetch location
+        this.lastFetchLocation = null;
+        this.RELOAD_DISTANCE = 2000; // Reload when moved 2km from last fetch
+        this.FETCH_RADIUS = 5000; // Fetch 5km radius
+        this.lastFetchTime = null;
+        this.MIN_FETCH_INTERVAL = 60000; // Don't fetch more than once per minute
+        
         this.init();
     }
 
@@ -13,17 +21,156 @@ class HotspotManager {
         await this.loadHotspots();
         await this.loadWishlist();
         this.setupCategoryFilters();
+        this.startLocationMonitoring();
+    }
+
+    // NEW: Monitor location changes and auto-reload hotspots
+    startLocationMonitoring() {
+        if (gpsTracker) {
+            gpsTracker.onPositionUpdate((position) => {
+                this.checkAndReloadHotspots(position);
+            });
+        }
+    }
+
+    // NEW: Check if we should reload hotspots
+    async checkAndReloadHotspots(position) {
+        // Don't check too frequently
+        if (this.lastFetchTime && Date.now() - this.lastFetchTime < this.MIN_FETCH_INTERVAL) {
+            return;
+        }
+
+        // Check if we've moved far enough
+        if (this.lastFetchLocation) {
+            const distance = calculateDistance(
+                this.lastFetchLocation.lat,
+                this.lastFetchLocation.lng,
+                position.lat,
+                position.lng
+            );
+
+            if (distance > this.RELOAD_DISTANCE) {
+                console.log(`Moved ${(distance / 1000).toFixed(2)}km - reloading hotspots...`);
+                await this.reloadHotspotsForLocation(position);
+            }
+        }
+    }
+
+    // NEW: Reload hotspots for new location
+    async reloadHotspotsForLocation(position) {
+        try {
+            showNotification('Loading nearby hotspots...', 2000);
+            
+            const newHotspots = await geoapifyService.fetchNearbyPlaces(
+                position.lat,
+                position.lng,
+                ['tourism', 'entertainment', 'natural', 'beach', 'catering', 'leisure'],
+                this.FETCH_RADIUS
+            );
+
+            if (newHotspots.length > 0) {
+                // Merge with existing hotspots (keep visited status)
+                this.mergeHotspots(newHotspots);
+                
+                // Save updated list
+                storage.setItem('hotspots', this.hotspots);
+                
+                // Update last fetch location
+                this.lastFetchLocation = {
+                    lat: position.lat,
+                    lng: position.lng
+                };
+                this.lastFetchTime = Date.now();
+                
+                // Save fetch location
+                localStorage.setItem('last_hotspot_fetch', JSON.stringify({
+                    location: this.lastFetchLocation,
+                    time: this.lastFetchTime
+                }));
+
+                console.log(`Loaded ${newHotspots.length} new hotspots`);
+                showNotification(`Found ${newHotspots.length} places nearby!`, 3000);
+
+                // Update map markers if on main page
+                if (window.mapManager && window.mapManager.isInitialized) {
+                    window.mapManager.updateHotspotMarkers();
+                }
+            }
+        } catch (error) {
+            console.error('Error reloading hotspots:', error);
+        }
+    }
+
+    // NEW: Merge new hotspots with existing ones, keeping visited status
+    mergeHotspots(newHotspots) {
+        // Create a map of existing hotspots by location (for quick lookup)
+        const existingMap = new Map();
+        this.hotspots.forEach(hotspot => {
+            const key = `${hotspot.lat.toFixed(4)}_${hotspot.lng.toFixed(4)}`;
+            existingMap.set(key, hotspot);
+        });
+
+        // Process new hotspots
+        newHotspots.forEach(newHotspot => {
+            const key = `${newHotspot.lat.toFixed(4)}_${newHotspot.lng.toFixed(4)}`;
+            const existing = existingMap.get(key);
+
+            if (existing) {
+                // Update existing hotspot but keep visited status
+                newHotspot.visited = existing.visited;
+                newHotspot.notified = existing.notified;
+                
+                // Replace in array
+                const index = this.hotspots.findIndex(h => h.id === existing.id);
+                if (index !== -1) {
+                    this.hotspots[index] = newHotspot;
+                }
+            } else {
+                // New hotspot - add it
+                this.hotspots.push(newHotspot);
+            }
+        });
+
+        // Remove hotspots that are too far away (> 10km)
+        const userPos = gpsTracker.currentPosition;
+        if (userPos) {
+            this.hotspots = this.hotspots.filter(hotspot => {
+                const distance = calculateDistance(
+                    userPos.lat,
+                    userPos.lng,
+                    hotspot.lat,
+                    hotspot.lng
+                );
+                return distance < 10000; // Keep within 10km
+            });
+        }
     }
 
     async loadHotspots() {
         await storage.waitForReady();
+        
+        // Load last fetch info
+        const lastFetch = localStorage.getItem('last_hotspot_fetch');
+        if (lastFetch) {
+            const fetchData = JSON.parse(lastFetch);
+            this.lastFetchLocation = fetchData.location;
+            this.lastFetchTime = fetchData.time;
+        }
+        
         const savedHotspots = storage.getItem('hotspots');
        
         if (savedHotspots && savedHotspots.length > 0) {
             console.log(`Loaded ${savedHotspots.length} hotspots from storage`);
             this.hotspots = savedHotspots;
-        } else {
+            
+            // Check if we need to refresh based on current location
             const position = gpsTracker.currentPosition;
+            if (position) {
+                await this.checkAndReloadHotspots(position);
+            }
+        } else {
+            // No saved hotspots - fetch fresh
+            const position = await gpsTracker.getCurrentPosition();
            
             if (position && geoapifyService.apiKey === '199b4ac789c040c180ad396100269fdd') {
                 console.log('Fetching hotspots from Geoapify...');
@@ -33,12 +180,23 @@ class HotspotManager {
                         position.lat,
                         position.lng,
                         ['tourism', 'entertainment', 'natural', 'beach', 'catering', 'leisure'],
-                        5000
+                        this.FETCH_RADIUS
                     );
                    
                     if (this.hotspots.length > 0) {
                         console.log(`✓ Loaded ${this.hotspots.length} hotspots from Geoapify`);
                         storage.setItem('hotspots', this.hotspots);
+                        
+                        this.lastFetchLocation = {
+                            lat: position.lat,
+                            lng: position.lng
+                        };
+                        this.lastFetchTime = Date.now();
+                        
+                        localStorage.setItem('last_hotspot_fetch', JSON.stringify({
+                            location: this.lastFetchLocation,
+                            time: this.lastFetchTime
+                        }));
                     } else {
                         console.log('No hotspots found from Geoapify, generating demo hotspots');
                         this.hotspots = this.generateDemoHotspots(position.lat, position.lng);
@@ -224,14 +382,10 @@ class HotspotManager {
         const hotspot = this.hotspots.find(h => h.id === hotspotId);
         
         if (hotspot) {
-            // Toggle visited status
             if (!hotspot.visited) {
                 hotspot.visited = true;
-                
-                // Save to storage
                 storage.setItem('hotspots', this.hotspots);
                 
-                // Update stats
                 if (typeof statsTracker !== 'undefined') {
                     statsTracker.incrementPlacesVisited();
                 }
@@ -274,6 +428,18 @@ class HotspotManager {
         if (window.mapManager) {
             window.mapManager.updateHotspotMarkers();
         }
+    }
+
+    // NEW: Manual refresh function
+    async forceRefreshHotspots() {
+        const position = gpsTracker.currentPosition;
+        if (!position) {
+            showNotification('Location not available', 2000);
+            return;
+        }
+
+        this.lastFetchTime = 0; // Reset timer
+        await this.reloadHotspotsForLocation(position);
     }
 }
 

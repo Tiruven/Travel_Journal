@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#1a1a2e">
-    <title>AR Travel Journal</title>
+    <title>Travel Journal</title>
 
     <!-- Leaflet CSS for mapping -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -65,6 +65,18 @@
             </span>
         </div>
     </div>
+
+    <!-- GPS Accuracy Indicator -->
+    <div id="gps-accuracy-indicator" class="gps-accuracy-indicator">
+        <i class="fas fa-satellite-dish"></i>
+        <span id="gps-accuracy-text">--m</span>
+        <span id="gps-accuracy-status" class="status-dot"></span>
+    </div>
+
+    <!-- Refresh Hotspots Button -->
+    <button id="refresh-hotspots-btn" class="refresh-hotspots-btn" title="Refresh nearby places">
+        <i class="fas fa-sync-alt"></i>
+    </button>
 
     <!-- Map Container -->
     <div id="map"></div>
@@ -365,13 +377,14 @@
     <script src="js/features/weather-service.js"></script>
     <script src="js/features/route-drawer.js"></script>
     <script src="js/features/memory-manager.js"></script>
+    <script src="js/features/geoapify-service.js"></script>
+    <!-- NEW: Add routing service BEFORE hotspot-manager -->
+    <script src="js/features/geoapify-routing-service.js"></script>
     <script src="js/features/hotspot-manager.js"></script>
     <script src="js/features/achievements.js"></script>
     <script src="js/features/stats-tracker.js"></script>
-    <script src="js/features/geoapify-service.js"></script>
 
-
-    <!-- load last -->
+    <!-- Map and app load last -->
     <script src="js/map-manager.js"></script>
     <script src="js/app.js"></script>
     <script src="js/auth.js"></script>
@@ -386,6 +399,66 @@
 
         window.addEventListener('unhandledrejection', function (e) {
             console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
+
+    <script>
+        // GPS Accuracy Updater
+        function updateGPSAccuracyUI() {
+            const indicator = document.getElementById('gps-accuracy-indicator');
+            const text = document.getElementById('gps-accuracy-text');
+            const statusDot = document.getElementById('gps-accuracy-status');
+
+            if (!indicator || !text || !statusDot) return;
+
+            const position = gpsTracker.currentPosition;
+
+            if (position && position.accuracy) {
+                text.textContent = `${Math.round(position.accuracy)}m`;
+
+                const status = gpsTracker.getAccuracyStatus();
+                statusDot.className = `status-dot ${status}`;
+
+                // Update tooltip
+                const tooltips = {
+                    excellent: 'Excellent GPS accuracy',
+                    good: 'Good GPS accuracy',
+                    fair: 'Fair GPS accuracy',
+                    poor: 'Poor GPS accuracy'
+                };
+                indicator.title = tooltips[status] || 'GPS accuracy unknown';
+            } else {
+                text.textContent = '--m';
+                statusDot.className = 'status-dot';
+                indicator.title = 'Waiting for GPS...';
+            }
+        }
+
+        // Update GPS accuracy every 2 seconds
+        setInterval(updateGPSAccuracyUI, 2000);
+
+        // Refresh Hotspots Button
+        document.getElementById('refresh-hotspots-btn')?.addEventListener('click', async function () {
+            const btn = this;
+            const icon = btn.querySelector('i');
+
+            // Prevent double-clicking
+            if (btn.classList.contains('spinning')) return;
+
+            btn.classList.add('spinning');
+            btn.disabled = true;
+
+            try {
+                await hotspotManager.forceRefreshHotspots();
+            } catch (error) {
+                console.error('Error refreshing hotspots:', error);
+                showNotification('Failed to refresh hotspots', 3000);
+            } finally {
+                setTimeout(() => {
+                    btn.classList.remove('spinning');
+                    btn.disabled = false;
+                }, 1000);
+            }
         });
     </script>
 
@@ -406,6 +479,7 @@
             }
         }
     </script>
+
 </body>
 
 </html>

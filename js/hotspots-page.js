@@ -1,4 +1,5 @@
-// Hotspots Explorer Page - FIXED
+// Hotspots Explorer Page with Navigation Support
+
 class HotspotsExplorer {
     constructor() {
         this.hotspots = [];
@@ -16,25 +17,19 @@ class HotspotsExplorer {
 
     async init() {
         this.showLoading(true);
-
         try {
-            // Initialize storage
             await storage.waitForReady();
 
-            // Get user position
             try {
                 this.userPosition = await gpsTracker.getCurrentPosition();
             } catch (error) {
                 console.error('Could not get user position:', error);
             }
 
-            // Load hotspots (will fetch from Geoapify if needed)
             await hotspotManager.loadHotspots();
             this.hotspots = hotspotManager.hotspots;
-
             console.log(`Loaded ${this.hotspots.length} hotspots for display`);
 
-            // Update distances
             if (this.userPosition) {
                 hotspotManager.updateHotspotDistances(
                     this.userPosition.lat,
@@ -42,7 +37,6 @@ class HotspotsExplorer {
                 );
             }
 
-            // Setup UI
             this.setupEventListeners();
             this.updateStats();
             this.applyFilters();
@@ -67,7 +61,6 @@ class HotspotsExplorer {
     }
 
     setupEventListeners() {
-        // Search
         const searchInput = document.getElementById('search-input');
         const clearSearch = document.getElementById('clear-search');
 
@@ -92,7 +85,6 @@ class HotspotsExplorer {
             });
         }
 
-        // Filter toggle
         const filterToggle = document.getElementById('filter-toggle');
         const filterPanel = document.getElementById('filter-panel');
 
@@ -103,10 +95,9 @@ class HotspotsExplorer {
             });
         }
 
-        // Category filters
         document.querySelectorAll('[data-category]').forEach(chip => {
             chip.addEventListener('click', () => {
-                document.querySelectorAll('[data-category]').forEach(c => 
+                document.querySelectorAll('[data-category]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
@@ -116,10 +107,9 @@ class HotspotsExplorer {
             });
         });
 
-        // Status filters
         document.querySelectorAll('[data-status]').forEach(chip => {
             chip.addEventListener('click', () => {
-                document.querySelectorAll('[data-status]').forEach(c => 
+                document.querySelectorAll('[data-status]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
@@ -129,10 +119,9 @@ class HotspotsExplorer {
             });
         });
 
-        // Sort filters
         document.querySelectorAll('[data-sort]').forEach(chip => {
             chip.addEventListener('click', () => {
-                document.querySelectorAll('[data-sort]').forEach(c => 
+                document.querySelectorAll('[data-sort]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
@@ -142,7 +131,6 @@ class HotspotsExplorer {
             });
         });
 
-        // Close modal
         document.querySelectorAll('.close-modal').forEach(btn => {
             btn.addEventListener('click', () => {
                 const modal = document.getElementById('detail-modal');
@@ -156,21 +144,18 @@ class HotspotsExplorer {
     applyFilters() {
         this.filteredHotspots = this.hotspots;
 
-        // Category filter
         if (this.currentFilters.category !== 'all') {
             this.filteredHotspots = this.filteredHotspots.filter(
                 h => h.category === this.currentFilters.category
             );
         }
 
-        // Status filter
         if (this.currentFilters.status === 'visited') {
             this.filteredHotspots = this.filteredHotspots.filter(h => h.visited);
         } else if (this.currentFilters.status === 'unvisited') {
             this.filteredHotspots = this.filteredHotspots.filter(h => !h.visited);
         }
 
-        // Wishlist view
         if (this.wishlistView) {
             const wishlist = hotspotManager.wishlist;
             this.filteredHotspots = this.filteredHotspots.filter(
@@ -178,7 +163,6 @@ class HotspotsExplorer {
             );
         }
 
-        // Search filter
         if (this.currentFilters.search) {
             this.filteredHotspots = this.filteredHotspots.filter(h =>
                 (h.name || '').toLowerCase().includes(this.currentFilters.search) ||
@@ -187,10 +171,7 @@ class HotspotsExplorer {
             );
         }
 
-        // Sort
         this.sortHotspots();
-
-        // Render
         this.renderHotspots();
     }
 
@@ -213,7 +194,7 @@ class HotspotsExplorer {
         const emptyState = document.getElementById('empty-state');
 
         if (!container) {
-            return; // Not on hotspots page
+            return;
         }
 
         if (this.filteredHotspots.length === 0) {
@@ -235,7 +216,7 @@ class HotspotsExplorer {
             return `
                 <div class="hotspot-card" onclick="hotspotsExplorer.showDetail('${hotspot.id}')">
                     <div class="hotspot-image">
-                        ${hotspot.photos && hotspot.photos.length > 0 
+                        ${hotspot.photos && hotspot.photos.length > 0
                             ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
                             : `<i class="fas ${icon}"></i>`
                         }
@@ -247,7 +228,7 @@ class HotspotsExplorer {
                                 <span class="category-badge ${hotspot.category || 'tourism'}">${hotspot.category || 'tourism'}</span>
                             </div>
                             <div class="hotspot-actions">
-                                <button class="icon-btn ${isWishlisted ? 'active' : ''}" 
+                                <button class="icon-btn ${isWishlisted ? 'active' : ''}"
                                         onclick="event.stopPropagation(); hotspotsExplorer.toggleWishlist('${hotspot.id}')">
                                     <i class="fas fa-heart"></i>
                                 </button>
@@ -297,7 +278,7 @@ class HotspotsExplorer {
 
         const detailContent = `
             <div class="detail-header">
-                ${hotspot.photos && hotspot.photos.length > 0 
+                ${hotspot.photos && hotspot.photos.length > 0
                     ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
                     : `<i class="fas ${icon} detail-header-icon"></i>`
                 }
@@ -309,16 +290,14 @@ class HotspotsExplorer {
                         <span class="category-badge ${hotspot.category || 'tourism'}">${hotspot.category || 'tourism'}</span>
                     </div>
                     <div class="detail-actions">
-                        <button class="action-btn ${isWishlisted ? 'primary' : 'secondary'}" 
+                        <button class="action-btn ${isWishlisted ? 'primary' : 'secondary'}"
                                 onclick="hotspotsExplorer.toggleWishlist('${hotspot.id}')">
                             <i class="fas fa-heart"></i>
                             ${isWishlisted ? 'Wishlisted' : 'Add to Wishlist'}
                         </button>
                     </div>
                 </div>
-
                 <p class="detail-description">${this.escapeHtml(hotspot.description || 'No description available')}</p>
-
                 <div class="detail-info">
                     <div class="info-row">
                         <i class="fas fa-map-marker-alt"></i>
@@ -327,7 +306,6 @@ class HotspotsExplorer {
                             <div class="info-value">${this.escapeHtml(hotspot.address || 'N/A')}</div>
                         </div>
                     </div>
-
                     <div class="info-row">
                         <i class="fas fa-route"></i>
                         <div class="info-content">
@@ -335,7 +313,6 @@ class HotspotsExplorer {
                             <div class="info-value">${formatDistance(hotspot.distance || 0)}</div>
                         </div>
                     </div>
-
                     <div class="info-row">
                         <i class="fas fa-compass"></i>
                         <div class="info-content">
@@ -343,7 +320,6 @@ class HotspotsExplorer {
                             <div class="info-value">${hotspot.lat.toFixed(6)}, ${hotspot.lng.toFixed(6)}</div>
                         </div>
                     </div>
-
                     ${hotspot.rating > 0 ? `
                         <div class="info-row">
                             <i class="fas fa-star"></i>
@@ -353,7 +329,6 @@ class HotspotsExplorer {
                             </div>
                         </div>
                     ` : ''}
-
                     ${hotspot.details && hotspot.details.phone ? `
                         <div class="info-row">
                             <i class="fas fa-phone"></i>
@@ -363,7 +338,6 @@ class HotspotsExplorer {
                             </div>
                         </div>
                     ` : ''}
-
                     ${hotspot.details && hotspot.details.website ? `
                         <div class="info-row">
                             <i class="fas fa-globe"></i>
@@ -375,7 +349,6 @@ class HotspotsExplorer {
                             </div>
                         </div>
                     ` : ''}
-
                     ${hotspot.details && hotspot.details.openingHours ? `
                         <div class="info-row">
                             <i class="fas fa-clock"></i>
@@ -386,15 +359,13 @@ class HotspotsExplorer {
                         </div>
                     ` : ''}
                 </div>
-
-                <button class="action-btn primary" style="width: 100%; justify-content: center;" 
+                <button class="action-btn primary" style="width: 100%; justify-content: center; margin-top: 16px;"
                         onclick="hotspotsExplorer.navigateToHotspot('${hotspot.id}')">
                     <i class="fas fa-directions"></i>
                     Get Directions on Map
                 </button>
-
                 ${!hotspot.visited ? `
-                    <button class="action-btn secondary" style="width: 100%; margin-top: 12px; justify-content: center;" 
+                    <button class="action-btn secondary" style="width: 100%; margin-top: 12px; justify-content: center;"
                             onclick="hotspotsExplorer.markAsVisited('${hotspot.id}')">
                         <i class="fas fa-check-circle"></i>
                         Mark as Visited
@@ -422,11 +393,9 @@ class HotspotsExplorer {
         } else {
             hotspotManager.addToWishlist(hotspotId);
         }
-
         this.updateStats();
         this.applyFilters();
 
-        // Update detail modal if open
         const modal = document.getElementById('detail-modal');
         if (modal && !modal.classList.contains('hidden')) {
             this.showDetail(hotspotId);
@@ -440,17 +409,21 @@ class HotspotsExplorer {
         this.showDetail(hotspotId);
     }
 
+    // NEW: Navigate to hotspot - saves to localStorage and redirects to index
     navigateToHotspot(hotspotId) {
         const hotspot = hotspotManager.getHotspotById(hotspotId);
-        if (hotspot) {
-            localStorage.setItem('navigationTarget', JSON.stringify({
-                lat: hotspot.lat,
-                lng: hotspot.lng,
-                name: hotspot.name
-            }));
+        if (!hotspot) return;
 
-            window.location.href = 'index.html';
-        }
+        // Save navigation target
+        localStorage.setItem('navigationTarget', JSON.stringify({
+            id: hotspot.id,
+            lat: hotspot.lat,
+            lng: hotspot.lng,
+            name: hotspot.name
+        }));
+
+        // Redirect to main map page
+        window.location.href = 'index.html';
     }
 
     updateStats() {

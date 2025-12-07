@@ -1,4 +1,4 @@
-// Map Manager with Fixed Memory Markers and Navigation
+// Map Manager with Routing API Integration
 
 class MapManager {
     constructor() {
@@ -10,6 +10,10 @@ class MapManager {
         this.isInitialized = false;
         this.showMemoryOrbs = true;
         this.navigationRoute = null;
+        this.turnMarkers = [];
+        this.isNavigating = false;
+        this.navigationTarget = null;
+        this.offRouteThreshold = 50; // meters
     }
 
     async init() {
@@ -17,7 +21,7 @@ class MapManager {
             console.warn('Map already initialized');
             return;
         }
-       
+
         await this.initializeMap();
         this.setupEventListeners();
         this.checkNavigationTarget();
@@ -33,7 +37,7 @@ class MapManager {
 
         try {
             const position = await gpsTracker.getCurrentPosition();
-           
+
             this.map = L.map('map', {
                 zoomControl: false,
                 attributionControl: false
@@ -44,7 +48,6 @@ class MapManager {
                 attribution: '© OpenStreetMap'
             }).addTo(this.map);
 
-            // Add zoom control to bottom right
             L.control.zoom({
                 position: 'bottomright'
             }).addTo(this.map);
@@ -65,7 +68,7 @@ class MapManager {
         } catch (error) {
             console.error('Map initialization error:', error);
             showNotification('Failed to get your location. Using default.');
-           
+
             const mapDiv = document.getElementById('map');
             if (mapDiv) {
                 mapDiv.innerHTML = '';
@@ -75,7 +78,7 @@ class MapManager {
             this.map = L.map('map', {
                 zoomControl: false,
                 attributionControl: false
-            }).setView([-20.2674718, 57.4796981], 13); // Mauritius
+            }).setView([-20.2674718, 57.4796981], 13);
 
             this.tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
@@ -108,7 +111,7 @@ class MapManager {
 
         hotspots.forEach(hotspot => {
             const iconClass = hotspot.visited ? 'hotspot-marker visited' : 'hotspot-marker';
-           
+
             const icon = L.divIcon({
                 className: iconClass,
                 html: `<i class="fas ${hotspotManager.getCategoryIcon(hotspot.category)}"></i>`,
@@ -137,7 +140,7 @@ class MapManager {
 
     createHotspotPopup(hotspot) {
         const isWishlisted = hotspotManager.isInWishlist(hotspot.id);
-       
+
         return `
             <div class="hotspot-popup">
                 <h3>${hotspot.name}</h3>
@@ -147,8 +150,11 @@ class MapManager {
                     ${hotspot.distance ? `<span><i class="fas fa-route"></i> ${formatDistance(hotspot.distance)}</span>` : ''}
                 </div>
                 <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <button onclick="window.mapManager.startNavigation('${hotspot.id}')" class="save-btn" style="flex: 1;">
+                        <i class="fas fa-directions"></i> Navigate
+                    </button>
                     <button onclick="window.mapManager.visitHotspot('${hotspot.id}')" class="save-btn" style="flex: 1;">
-                        ${hotspot.visited ? '✓ Visited' : 'Mark as Visited'}
+                        ${hotspot.visited ? '✓ Visited' : 'Mark Visited'}
                     </button>
                     <button onclick="window.mapManager.toggleHotspotWishlist('${hotspot.id}')"
                             class="${isWishlisted ? 'retake-btn' : 'save-btn'}"
@@ -158,6 +164,284 @@ class MapManager {
                 </div>
             </div>
         `;
+    }
+
+    // NEW: Start navigation to hotspot
+    async startNavigation(hotspotId) {
+        const hotspot = hotspotManager.getHotspotById(hotspotId);
+        if (!hotspot) return;
+
+        const userPos = gpsTracker.currentPosition;
+        if (!userPos) {
+            showNotification('GPS position not available', 3000);
+            return;
+        }
+
+        this.map.closePopup();
+        showNotification('Calculating route...', 2000);
+
+        try {
+            // Get route with turn-by-turn instructions
+            const route = await routingService.getRouteWithInstructions(
+                { lat: userPos.lat, lng: userPos.lng },
+                { lat: hotspot.lat, lng: hotspot.lng },
+                'walk' // Default to walking
+            );
+
+            // Clear any existing route
+            this.clearNavigation();
+
+            // Draw route on map
+            routingService.drawRouteOnMap(this.map, route, {
+                color: '#6366f1',
+                weight: 6,
+                opacity: 0.8
+            });
+
+            // Draw turn-by-turn markers
+            this.turnMarkers = routingService.drawTurnByTurnMarkers(
+                this.map,
+                route.instructions
+            );
+
+            // Show navigation info
+            this.showNavigationPanel(route, hotspot);
+
+            // Set navigation state
+            this.isNavigating = true;
+            this.navigationTarget = {
+                hotspot: hotspot,
+                route: route
+            };
+
+            // Start tracking for navigation
+            this.startNavigationTracking();
+
+        } catch (error) {
+            console.error('Navigation error:', error);
+            showNotification('Failed to calculate route', 3000);
+        }
+    }
+
+    // NEW: Show navigation panel
+    showNavigationPanel(route, destination) {
+        // Create or update navigation panel
+        let navPanel = document.getElementById('navigation-panel');
+
+        if (!navPanel) {
+            navPanel = document.createElement('div');
+            navPanel.id = 'navigation-panel';
+            navPanel.className = 'navigation-panel';
+            document.body.appendChild(navPanel);
+        }
+
+        const arrivalTime = routingService.getEstimatedArrival(route);
+
+        navPanel.innerHTML = `
+            <div class="nav-header">
+                <h3><i class="fas fa-navigation"></i> Navigation</h3>
+                <button onclick="window.mapManager.clearNavigation()" class="nav-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="nav-info">
+                <div class="nav-destination">
+                    <strong>To:</strong> ${destination.name}
+                </div>
+                <div class="nav-stats">
+                    <div class="nav-stat">
+                        <i class="fas fa-route"></i>
+                        <span>${route.distanceFormatted}</span>
+                    </div>
+                    <div class="nav-stat">
+                        <i class="fas fa-clock"></i>
+                        <span>${route.timeFormatted}</span>
+                    </div>
+                    <div class="nav-stat">
+                        <i class="fas fa-flag-checkered"></i>
+                        <span>ETA: ${arrivalTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="nav-instructions" id="nav-instructions-list">
+                ${this.renderInstructions(route.instructions)}
+            </div>
+        `;
+
+        navPanel.classList.add('visible');
+    }
+
+    // NEW: Render turn-by-turn instructions
+    renderInstructions(instructions) {
+        if (!instructions || instructions.length === 0) {
+            return '<p>No instructions available</p>';
+        }
+
+        return instructions.map((instruction, index) => `
+            <div class="instruction-item" data-index="${index}">
+                <div class="instruction-number">${index + 1}</div>
+                <div class="instruction-content">
+                    <div class="instruction-text">${instruction.text}</div>
+                    <div class="instruction-meta">
+                        ${routingService.formatDistance(instruction.distance, 'meters')} • 
+                        ${routingService.formatTime(instruction.time)}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // NEW: Track navigation progress
+    startNavigationTracking() {
+        if (this.navigationTrackingInterval) {
+            clearInterval(this.navigationTrackingInterval);
+        }
+
+        this.navigationTrackingInterval = setInterval(() => {
+            if (!this.isNavigating || !this.navigationTarget) {
+                clearInterval(this.navigationTrackingInterval);
+                return;
+            }
+
+            const userPos = gpsTracker.currentPosition;
+            if (!userPos) return;
+
+            const route = this.navigationTarget.route;
+
+            // Check if user is still on route
+            const isOnRoute = routingService.isNearRoute(
+                userPos,
+                route,
+                this.offRouteThreshold
+            );
+
+            if (!isOnRoute) {
+                // User went off route - recalculate
+                this.recalculateRoute();
+            } else {
+                // Highlight next instruction
+                this.highlightNextInstruction(userPos, route.instructions);
+            }
+
+            // Check if arrived
+            const distanceToDestination = calculateDistance(
+                userPos.lat,
+                userPos.lng,
+                this.navigationTarget.hotspot.lat,
+                this.navigationTarget.hotspot.lng
+            );
+
+            if (distanceToDestination < 20) {
+                this.arriveAtDestination();
+            }
+
+        }, 5000); // Check every 5 seconds
+    }
+
+    // NEW: Recalculate route when off track
+    async recalculateRoute() {
+        const userPos = gpsTracker.currentPosition;
+        if (!userPos || !this.navigationTarget) return;
+
+        console.log('User went off route - recalculating...');
+        showNotification('Recalculating route...', 2000);
+
+        try {
+            const newRoute = await routingService.recalculateRoute(
+                { lat: userPos.lat, lng: userPos.lng },
+                { lat: this.navigationTarget.hotspot.lat, lng: this.navigationTarget.hotspot.lng },
+                'walk'
+            );
+
+            // Clear old route
+            routingService.clearRoute(this.map);
+            this.turnMarkers.forEach(m => this.map.removeLayer(m));
+
+            // Draw new route
+            routingService.drawRouteOnMap(this.map, newRoute);
+            this.turnMarkers = routingService.drawTurnByTurnMarkers(
+                this.map,
+                newRoute.instructions
+            );
+
+            // Update navigation panel
+            this.navigationTarget.route = newRoute;
+            this.showNavigationPanel(newRoute, this.navigationTarget.hotspot);
+
+        } catch (error) {
+            console.error('Route recalculation error:', error);
+        }
+    }
+
+    // NEW: Highlight next instruction
+    highlightNextInstruction(currentPosition, instructions) {
+        const nextInstruction = routingService.getNextInstruction(
+            currentPosition,
+            instructions
+        );
+
+        if (nextInstruction) {
+            // Highlight in UI
+            const items = document.querySelectorAll('.instruction-item');
+            items.forEach(item => item.classList.remove('active'));
+
+            const activeItem = document.querySelector(
+                `.instruction-item[data-index="${instructions.indexOf(nextInstruction)}"]`
+            );
+
+            if (activeItem) {
+                activeItem.classList.add('active');
+                activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    // NEW: Arrive at destination
+    arriveAtDestination() {
+        if (!this.navigationTarget) return;
+
+        const hotspot = this.navigationTarget.hotspot;
+
+        showNotification(`✓ Arrived at ${hotspot.name}!`, 5000);
+
+        // Mark as visited
+        hotspotManager.markHotspotAsVisited(hotspot.id);
+
+        // Clear navigation
+        setTimeout(() => {
+            this.clearNavigation();
+        }, 3000);
+    }
+
+    // NEW: Clear navigation
+    clearNavigation() {
+        // Clear route from map
+        if (routingService.routeLayer) {
+            this.map.removeLayer(routingService.routeLayer);
+            routingService.routeLayer = null;
+        }
+
+        // Clear turn markers
+        this.turnMarkers.forEach(marker => this.map.removeLayer(marker));
+        this.turnMarkers = [];
+
+        // Clear navigation panel
+        const navPanel = document.getElementById('navigation-panel');
+        if (navPanel) {
+            navPanel.classList.remove('visible');
+            setTimeout(() => navPanel.remove(), 300);
+        }
+
+        // Clear tracking interval
+        if (this.navigationTrackingInterval) {
+            clearInterval(this.navigationTrackingInterval);
+        }
+
+        // Reset state
+        this.isNavigating = false;
+        this.navigationTarget = null;
+
+        showNotification('Navigation stopped', 2000);
     }
 
     onHotspotClick(hotspot) {
@@ -305,10 +589,23 @@ class MapManager {
             const navTarget = JSON.parse(target);
             localStorage.removeItem('navigationTarget');
 
-            this.flyTo(navTarget.lat, navTarget.lng, 16);
+            console.log('Navigation target found:', navTarget);
 
+            // Wait for map to be ready
             setTimeout(() => {
-                this.showRouteToTarget(navTarget);
+                // Fly to target location first
+                this.flyTo(navTarget.lat, navTarget.lng, 16);
+
+                // Then start navigation after a short delay
+                setTimeout(() => {
+                    if (navTarget.id) {
+                        // Start navigation using hotspot ID
+                        this.startNavigation(navTarget.id);
+                    } else {
+                        // Just show the location
+                        showNotification(`Arrived at ${navTarget.name}`, 3000);
+                    }
+                }, 1500);
             }, 1000);
         }
     }
@@ -320,31 +617,10 @@ class MapManager {
             return;
         }
 
-        if (this.navigationRoute) {
-            this.map.removeLayer(this.navigationRoute);
+        // Use routing API instead of straight line
+        if (target.id) {
+            this.startNavigation(target.id);
         }
-
-        this.navigationRoute = L.polyline([
-            [userPos.lat, userPos.lng],
-            [target.lat, target.lng]
-        ], {
-            color: '#ef4444',
-            weight: 4,
-            opacity: 0.7,
-            dashArray: '10, 10'
-        }).addTo(this.map);
-
-        const distance = calculateDistance(
-            userPos.lat,
-            userPos.lng,
-            target.lat,
-            target.lng
-        );
-
-        showNotification(
-            `Route to ${target.name}: ${formatDistance(distance)}`,
-            5000
-        );
     }
 
     startLocationTracking() {
@@ -406,7 +682,7 @@ class MapManager {
     changeTheme(theme) {
         this.currentTheme = theme;
         document.body.className = `theme-${theme}`;
-       
+
         const tileLayers = {
             day: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
             night: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -454,7 +730,7 @@ class MapManager {
                 m.getLatLng().lat === hotspot.lat &&
                 m.getLatLng().lng === hotspot.lng
             );
-           
+
             if (marker) {
                 marker.openPopup();
             }
@@ -462,5 +738,4 @@ class MapManager {
     }
 }
 
-// Create global instance - IMPORTANT: Make it globally accessible
 window.mapManager = null;
