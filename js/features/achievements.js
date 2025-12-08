@@ -1,4 +1,5 @@
 // Achievements Manager
+
 class AchievementsManager {
     constructor() {
         this.achievements = [
@@ -78,7 +79,15 @@ class AchievementsManager {
             // Merge saved data with default achievements
             this.achievements = this.achievements.map(achievement => {
                 const savedAchievement = saved.find(s => s.id === achievement.id);
-                return savedAchievement || achievement;
+                if (savedAchievement) {
+                    return {
+                        ...achievement,
+                        progress: Math.round(savedAchievement.progress || 0),
+                        unlocked: savedAchievement.unlocked || false,
+                        unlockedAt: savedAchievement.unlockedAt
+                    };
+                }
+                return achievement;
             });
         }
     }
@@ -87,34 +96,35 @@ class AchievementsManager {
         const stats = statsTracker.getStats();
         let newUnlocks = [];
 
-        this.achievements.forEach(achievement => {
-            if (achievement.unlocked) return;
+        for (const achievement of this.achievements) {
+            if (achievement.unlocked) continue;
 
             let progress = 0;
             let completed = false;
 
             switch(achievement.requirement.type) {
                 case 'distance':
-                    progress = stats.allTimeDistance;
+                    progress = Math.round(stats.allTimeDistance);
                     completed = progress >= achievement.requirement.value;
                     break;
                 
                 case 'hotspots':
-                    progress = stats.placesVisited;
+                    progress = Math.round(stats.placesVisited);
                     completed = progress >= achievement.requirement.value;
                     break;
                 
                 case 'memories':
-                    progress = stats.memoriesSaved;
+                    progress = Math.round(stats.memoriesSaved);
                     completed = progress >= achievement.requirement.value;
                     break;
                 
                 case 'steps':
-                    progress = stats.stepsToday;
+                    progress = Math.round(stats.stepsToday);
                     completed = progress >= achievement.requirement.value;
                     break;
             }
 
+            // Update progress
             achievement.progress = Math.min(progress, achievement.requirement.value);
 
             if (completed && !achievement.unlocked) {
@@ -126,9 +136,13 @@ class AchievementsManager {
                 statsTracker.addXP(achievement.reward);
             }
 
-            // Save achievement
-            storage.saveAchievement(achievement);
-        });
+            // Save achievement (without throwing errors)
+            try {
+                await storage.saveAchievement(achievement);
+            } catch (error) {
+                console.error('Error saving achievement:', achievement.id, error);
+            }
+        }
 
         // Show notifications for new unlocks
         newUnlocks.forEach(achievement => {
@@ -158,7 +172,7 @@ class AchievementsManager {
                             <div class="achievement-progress">
                                 <div class="achievement-progress-bar" style="width: ${progressPercent}%"></div>
                             </div>
-                            <small>${achievement.progress} / ${achievement.requirement.value}</small>
+                            <small>${Math.round(achievement.progress)} / ${achievement.requirement.value}</small>
                         ` : `
                             <small style="color: var(--success-color);">✓ Unlocked</small>
                         `}

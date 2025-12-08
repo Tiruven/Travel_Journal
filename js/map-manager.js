@@ -8,7 +8,6 @@ class MapManager {
         this.memoryMarkers = [];
         this.currentTheme = 'day';
         this.isInitialized = false;
-        this.showMemoryOrbs = true;
         this.navigationRoute = null;
         this.turnMarkers = [];
         this.isNavigating = false;
@@ -142,28 +141,28 @@ class MapManager {
         const isWishlisted = hotspotManager.isInWishlist(hotspot.id);
 
         return `
-            <div class="hotspot-popup">
-                <h3>${hotspot.name}</h3>
-                <p>${hotspot.description}</p>
-                <div style="display: flex; gap: 8px; margin: 8px 0; font-size: 13px;">
-                    ${hotspot.rating > 0 ? `<span><i class="fas fa-star" style="color: #f59e0b;"></i> ${hotspot.rating}</span>` : ''}
-                    ${hotspot.distance ? `<span><i class="fas fa-route"></i> ${formatDistance(hotspot.distance)}</span>` : ''}
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 12px;">
-                    <button onclick="window.mapManager.startNavigation('${hotspot.id}')" class="save-btn" style="flex: 1;">
-                        <i class="fas fa-directions"></i> Navigate
-                    </button>
-                    <button onclick="window.mapManager.visitHotspot('${hotspot.id}')" class="save-btn" style="flex: 1;">
-                        ${hotspot.visited ? '✓ Visited' : 'Mark Visited'}
-                    </button>
-                    <button onclick="window.mapManager.toggleHotspotWishlist('${hotspot.id}')"
-                            class="${isWishlisted ? 'retake-btn' : 'save-btn'}"
-                            style="width: 40px;">
-                        <i class="fas fa-heart"></i>
-                    </button>
-                </div>
+        <div class="hotspot-popup">
+            <h3>${hotspot.name}</h3>
+            <p>${hotspot.description}</p>
+            <div style="display: flex; gap: 2px; margin: 8px 0; font-size: 13px;">
+                ${hotspot.rating > 0 ? `<span><i class="fas fa-star" style="color: #f59e0b;"></i> ${hotspot.rating}</span>` : ''}
+                ${hotspot.distance ? `<span><i class="fas fa-route"></i> ${formatDistance(hotspot.distance)}</span>` : ''}
             </div>
-        `;
+            <div style="display: flex; gap: 2px; margin-top: 12px;">
+                <button onclick="window.mapManager.startNavigation('${hotspot.id}')" class="save-btn" style="flex: 1;">
+                    <i class="fas fa-directions"></i> Navigate
+                </button>
+                <button onclick="window.mapManager.visitHotspot('${hotspot.id}')" class="save-btn" style="flex: 1;">
+                    ${hotspot.visited ? '✓ Visited' : 'Mark Visited'}
+                </button>
+                <button onclick="window.mapManager.toggleHotspotWishlist('${hotspot.id}')"
+                        class="${isWishlisted ? 'retake-btn' : 'save-btn'}"
+                        style="width: 40px;">
+                    <i class="fas fa-heart"></i>
+                </button>
+            </div>
+        </div>
+    `;
     }
 
     // NEW: Start navigation to hotspot
@@ -467,13 +466,17 @@ class MapManager {
         this.map.closePopup();
     }
 
-    toggleHotspotWishlist(hotspotId) {
+    async toggleHotspotWishlist(hotspotId) {
         if (hotspotManager.isInWishlist(hotspotId)) {
-            hotspotManager.removeFromWishlist(hotspotId);
+            await hotspotManager.removeFromWishlist(hotspotId);
         } else {
-            hotspotManager.addToWishlist(hotspotId);
+            await hotspotManager.addToWishlist(hotspotId);
         }
+
+        // Update markers to show new wishlist status
         this.updateHotspotMarkers();
+
+        // Close and reopen popup to show updated button
         this.map.closePopup();
     }
 
@@ -563,24 +566,6 @@ class MapManager {
 
         content += `</div>`;
         return content;
-    }
-
-    toggleMemoryOrbs() {
-        this.showMemoryOrbs = !this.showMemoryOrbs;
-
-        if (this.showMemoryOrbs) {
-            this.memoryMarkers.forEach(marker => {
-                if (!this.map.hasLayer(marker)) {
-                    marker.addTo(this.map);
-                }
-            });
-            showNotification('Memory orbs shown', 2000);
-        } else {
-            this.memoryMarkers.forEach(marker => {
-                this.map.removeLayer(marker);
-            });
-            showNotification('Memory orbs hidden', 2000);
-        }
     }
 
     checkNavigationTarget() {
@@ -735,6 +720,12 @@ class MapManager {
                 marker.openPopup();
             }
         });
+    }
+
+    // Add this method to MapManager class
+    async syncWishlistFromDatabase() {
+        await hotspotManager.syncWishlist();
+        this.updateHotspotMarkers();
     }
 }
 

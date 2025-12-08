@@ -66,12 +66,7 @@
         </div>
     </div>
 
-    <!-- GPS Accuracy Indicator -->
-    <div id="gps-accuracy-indicator" class="gps-accuracy-indicator">
-        <i class="fas fa-satellite-dish"></i>
-        <span id="gps-accuracy-text">--m</span>
-        <span id="gps-accuracy-status" class="status-dot"></span>
-    </div>
+    
 
     <!-- Refresh Hotspots Button -->
     <button id="refresh-hotspots-btn" class="refresh-hotspots-btn" title="Refresh nearby places">
@@ -80,17 +75,6 @@
 
     <!-- Map Container -->
     <div id="map"></div>
-
-    <!-- User Avatar & Compass Indicator -->
-    <div id="user-avatar" class="user-avatar">
-        <div class="compass-radar">
-            <div class="radar-blip" data-direction="north"></div>
-            <div class="radar-blip" data-direction="east"></div>
-            <div class="radar-blip" data-direction="south"></div>
-            <div class="radar-blip" data-direction="west"></div>
-        </div>
-        <i class="fas fa-street-view"></i>
-    </div>
 
     <!-- Category Filters (Expandable) -->
     <div id="category-filters" class="category-filters-container">
@@ -143,10 +127,6 @@
             <button class="action-btn" data-action="text">
                 <i class="fas fa-pencil-alt"></i>
                 <span>Note</span>
-            </button>
-            <button class="action-btn" data-action="memory-orbs">
-                <i class="fas fa-map-marker-alt"></i>
-                <span>Memory Orbs</span>
             </button>
             <button class="action-btn" data-action="storage">
                 <i class="fas fa-folder"></i>
@@ -362,6 +342,11 @@
     <!-- Scripts - IMPORTANT: Load in this exact order -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config/supabase-config.js"></script>
+    <script src="js/utils/supabase-storage.js"></script>
+
     <!-- Utils must load first -->
     <script src="js/utils/helpers.js"></script>
     <script src="js/utils/storage.js"></script>
@@ -378,7 +363,6 @@
     <script src="js/features/route-drawer.js"></script>
     <script src="js/features/memory-manager.js"></script>
     <script src="js/features/geoapify-service.js"></script>
-    <!-- NEW: Add routing service BEFORE hotspot-manager -->
     <script src="js/features/geoapify-routing-service.js"></script>
     <script src="js/features/hotspot-manager.js"></script>
     <script src="js/features/achievements.js"></script>
@@ -462,11 +446,6 @@
         });
     </script>
 
-    <!-- TEMPORARY: Dev Clear Button -->
-    <button onclick="clearAllData()"
-        style="position: fixed; bottom: 10px; right: 10px; z-index: 10000; padding: 10px; background: red; color: white; border: none; border-radius: 5px; cursor: pointer;">
-        Clear & Reload
-    </button>
 
     <script>
         function clearAllData() {

@@ -18,96 +18,104 @@
             <i class="fas fa-arrow-left"></i>
         </button>
         <h1>Explore Hotspots</h1>
-        <button class="wishlist-btn" onclick="toggleWishlistView()">
+        <button class="wishlist-btn" id="wishlist-filter-btn">
             <i class="fas fa-heart"></i>
             <span id="wishlist-count" class="badge">0</span>
         </button>
     </header>
 
     <!-- Search Bar -->
-    <div class="search-container">
-        <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" id="search-input" placeholder="Search hotspots...">
-            <button id="clear-search" class="clear-btn hidden">
-                <i class="fas fa-times"></i>
+    <div class="section-wrapper">
+        <!-- Search -->
+        <div class="search-container">
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="search-input" placeholder="Search hotspots...">
+                <button id="clear-search" class="clear-btn hidden">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <button id="filter-toggle" class="filter-btn">
+                <i class="fas fa-filter"></i>
             </button>
         </div>
-        <button id="filter-toggle" class="filter-btn">
-            <i class="fas fa-filter"></i>
-        </button>
     </div>
 
     <!-- Filter Panel -->
-    <div id="filter-panel" class="filter-panel hidden">
+    <div class="section-wrapper">
+        <!-- Filters -->
+        <div id="filter-panel" class="filter-panel hidden">
+            <div class="filter-section">
+                <h3>Categories</h3>
+                <div class="filter-chips">
+                    <button class="chip active" data-category="all">All</button>
+                    <button class="chip" data-category="tourism">
+                        <i class="fas fa-camera"></i> Tourism
+                    </button>
+                    <button class="chip" data-category="entertainment">
+                        <i class="fas fa-theater-masks"></i> Entertainment
+                    </button>
+                    <button class="chip" data-category="beach">
+                        <i class="fas fa-umbrella-beach"></i> Beach
+                    </button>
+                    <button class="chip" data-category="catering">
+                        <i class="fas fa-utensils"></i> Food & Drinks
+                    </button>
+                    <button class="chip" data-category="natural">
+                        <i class="fas fa-tree"></i> Nature
+                    </button>
+                    <button class="chip" data-category="accommodation">
+                        <i class="fas fa-hotel"></i> Hotels
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+
         <div class="filter-section">
-            <h3>Categories</h3>
+            <h3>Status</h3>
             <div class="filter-chips">
-                <button class="chip active" data-category="all">All</button>
-                <button class="chip" data-category="tourism">
-                    <i class="fas fa-camera"></i> Tourism
+                <button class="chip active" data-status="all">All Places</button>
+                <button class="chip" data-status="visited">
+                    <i class="fas fa-check-circle"></i> Visited
                 </button>
-                <button class="chip" data-category="entertainment">
-                    <i class="fas fa-theater-masks"></i> Entertainment
-                </button>
-                <button class="chip" data-category="beach">
-                    <i class="fas fa-umbrella-beach"></i> Beach
-                </button>
-                <button class="chip" data-category="catering">
-                    <i class="fas fa-utensils"></i> Food & Drinks
-                </button>
-                <button class="chip" data-category="natural">
-                    <i class="fas fa-tree"></i> Nature
-                </button>
-                <button class="chip" data-category="accommodation">
-                    <i class="fas fa-hotel"></i> Hotels
+                <button class="chip" data-status="unvisited">
+                    <i class="fas fa-circle"></i> Not Visited
                 </button>
             </div>
         </div>
-    </div>
 
-    <div class="filter-section">
-        <h3>Status</h3>
-        <div class="filter-chips">
-            <button class="chip active" data-status="all">All Places</button>
-            <button class="chip" data-status="visited">
-                <i class="fas fa-check-circle"></i> Visited
-            </button>
-            <button class="chip" data-status="unvisited">
-                <i class="fas fa-circle"></i> Not Visited
-            </button>
-        </div>
-    </div>
-
-    <div class="filter-section">
-        <h3>Sort By</h3>
-        <div class="filter-chips">
-            <button class="chip active" data-sort="distance">
-                <i class="fas fa-route"></i> Distance
-            </button>
-            <button class="chip" data-sort="name">
-                <i class="fas fa-sort-alpha-down"></i> Name
-            </button>
-            <button class="chip" data-sort="rating">
-                <i class="fas fa-star"></i> Rating
-            </button>
+        <div class="filter-section">
+            <h3>Sort By</h3>
+            <div class="filter-chips">
+                <button class="chip active" data-sort="distance">
+                    <i class="fas fa-route"></i> Distance
+                </button>
+                <button class="chip" data-sort="name">
+                    <i class="fas fa-sort-alpha-down"></i> Name
+                </button>
+            </div>
         </div>
     </div>
     </div>
 
     <!-- Stats Bar -->
-    <div class="stats-bar">
-        <div class="stat-item">
-            <i class="fas fa-map-marker-alt"></i>
-            <span><strong id="total-hotspots">0</strong> Places</span>
-        </div>
-        <div class="stat-item">
-            <i class="fas fa-check-circle"></i>
-            <span><strong id="visited-count">0</strong> Visited</span>
-        </div>
-        <div class="stat-item">
-            <i class="fas fa-heart"></i>
-            <span><strong id="wishlist-total">0</strong> Wishlist</span>
+    <div class="section-wrapper">
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <span><strong id="total-hotspots">0</strong> Places</span>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-check-circle"></i>
+                <span><strong id="visited-count">0</strong> Visited</span>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-heart"></i>
+                <span><strong id="wishlist-total">0</strong> Wishlist</span>
+            </div>
         </div>
     </div>
 
@@ -141,6 +149,9 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config/supabase-config.js"></script>
+    <script src="js/utils/supabase-storage.js"></script>
     <script src="js/utils/helpers.js"></script>
     <script src="js/utils/storage.js"></script>
     <script src="js/hardware/gps-tracker.js"></script>

@@ -26,7 +26,7 @@ class DeviceInfoManager {
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             touchPoints: nav.maxTouchPoints
         };
-        
+
         const fingerprintStr = JSON.stringify(fingerprint);
         let hash = 0;
         for (let i = 0; i < fingerprintStr.length; i++) {
@@ -37,7 +37,7 @@ class DeviceInfoManager {
         return Math.abs(hash).toString(36);
     }
 
-    collectDeviceInfo() {
+    async collectDeviceInfo() {
         const nav = navigator;
         this.deviceInfo = {
             deviceId: this.generateDeviceFingerprint(),
@@ -59,14 +59,18 @@ class DeviceInfoManager {
             maxTouchPoints: nav.maxTouchPoints || 0
         };
 
+        // Save to local storage
         storage.setItem('deviceInfo', this.deviceInfo);
+
+        // Log to Supabase
+        await storage.logDeviceInfo(this.deviceInfo);
     }
 
     monitorNetworkInfo() {
         if ('connection' in navigator) {
             const connection = navigator.connection;
             this.updateNetworkInfo(connection);
-            
+
             if (connection) {
                 connection.addEventListener('change', () => {
                     this.updateNetworkInfo(connection);

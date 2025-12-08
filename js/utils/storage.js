@@ -1,287 +1,607 @@
-// Storage Manager for IndexedDB and LocalStorage
+// Storage Manager for Supabase
 class StorageManager {
     constructor() {
-        this.dbName = 'TravelJournalDB';
-        this.dbVersion = 1;
-        this.db = null;
-        this.isReady = false;
-        this.initPromise = this.initDB();
+        this.supabase = supabaseClient;
+        this.isReady = true;
+        this.currentUserId = null;
+        this.initPromise = this.init();
     }
 
-    // Initialize IndexedDB
-    async initDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, this.dbVersion);
-
-            request.onerror = () => {
-                console.error('IndexedDB error:', request.error);
-                this.isReady = true; // Mark as ready even on error, will use localStorage
-                resolve(null);
-            };
-            
-            request.onsuccess = () => {
-                this.db = request.result;
-                this.isReady = true;
-                console.log('IndexedDB initialized successfully');
-                resolve(this.db);
-            };
-
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-
-                // Create object stores
-                if (!db.objectStoreNames.contains('memories')) {
-                    const memoryStore = db.createObjectStore('memories', { 
-                        keyPath: 'id', 
-                        autoIncrement: true 
-                    });
-                    memoryStore.createIndex('type', 'type', { unique: false });
-                    memoryStore.createIndex('timestamp', 'timestamp', { unique: false });
-                    memoryStore.createIndex('location', 'location', { unique: false });
-                }
-
-                if (!db.objectStoreNames.contains('routes')) {
-                    db.createObjectStore('routes', { 
-                        keyPath: 'id', 
-                        autoIncrement: true 
-                    });
-                }
-
-                if (!db.objectStoreNames.contains('stats')) {
-                    db.createObjectStore('stats', { keyPath: 'date' });
-                }
-
-                if (!db.objectStoreNames.contains('achievements')) {
-                    db.createObjectStore('achievements', { keyPath: 'id' });
-                }
-            };
-        });
+    async init() {
+        try {
+            const { data: { user } } = await this.supabase.auth.getUser();
+            this.currentUserId = user?.id;
+            return true;
+        } catch (error) {
+            console.error('Storage init error:', error);
+            return false;
+        }
     }
 
-    // Wait for DB to be ready
     async waitForReady() {
-        if (this.isReady) return;
         await this.initPromise;
     }
 
-    // Save memory (photo, audio, text)
+    async getCurrentUserId() {
+        if (!this.currentUserId) {
+            const { data: { user } } = await this.supabase.auth.getUser();
+            this.currentUserId = user?.id;
+        }
+        return this.currentUserId;
+    }
+
+    // ============================================
+    // MEMORIES
+    // ============================================
+
     async saveMemory(memory) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            // Fallback to localStorage
-            const memories = this.getItem('memories') || [];
-            memory.id = Date.now();
-            memories.push(memory);
-            this.setItem('memories', memories);
-            return memory.id;
-        }
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['memories'], 'readwrite');
-            const store = transaction.objectStore('memories');
-            
-            memory.timestamp = memory.timestamp || Date.now();
-            memory.date = memory.date || new Date().toISOString();
-            
-            const request = store.add(memory);
-            
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
+            // Upload files to storage if they exist
+            if (memory.type === 'photo' && memory.data) {
+                const photoUrl = await supabaseStorage.uploadPhotoFromDataUrl(memory.data, userId);
+                memory.photo_url = photoUrl;
+                delete memory.data; // Remove base64 data
+            } else if (memory.type === 'audio' && memory.data) {
+                // Convert data URL to blob
+                const response = await fetch(memory.data);
+                const blob = await response.blob();
+                const audioUrl = await supabaseStorage.uploadAudio(blob, userId);
+                memory.audio_url = audioUrl;
+                delete memory.data; // Remove base64 data
+            } else if (memory.type === 'text') {
+                memory.text_note = memory.caption;
+            }
+
+            // Save to database
+            const { data, error } = await this.supabase
+                .from('user_memories')
+                .insert([{
+                    user_id: userId,
+                    type: memory.type,
+                    photo_url: memory.photo_url || null,
+                    audio_url: memory.audio_url || null,
+                    text_note: memory.text_note || null,
+                    caption: memory.caption,
+                    latitude: memory.location?.lat || null,
+                    longitude: memory.location?.lng || null,
+                    hotspot_name: memory.hotspot_name || null,
+                    hotspot_category: memory.hotspot_category || null
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return data.id;
+        } catch (error) {
+            console.error('Save memory error:', error);
+            throw error;
+        }
     }
 
-    // Get all memories
     async getAllMemories(type = null) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            // Fallback to localStorage
-            const memories = this.getItem('memories') || [];
-            return type ? memories.filter(m => m.type === type) : memories;
-        }
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return [];
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['memories'], 'readonly');
-            const store = transaction.objectStore('memories');
-            
-            let request;
+            let query = this.supabase
+                .from('user_memories')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
             if (type) {
-                const index = store.index('type');
-                request = index.getAll(type);
-            } else {
-                request = store.getAll();
+                query = query.eq('type', type);
             }
-            
-            request.onsuccess = () => resolve(request.result || []);
-            request.onerror = () => reject(request.error);
-        });
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            // Convert to format expected by app
+            return data.map(memory => ({
+                id: memory.id,
+                type: memory.type,
+                data: memory.photo_url || memory.audio_url || null,
+                caption: memory.caption || memory.text_note,
+                location: memory.latitude && memory.longitude ? {
+                    lat: memory.latitude,
+                    lng: memory.longitude
+                } : null,
+                timestamp: new Date(memory.created_at).getTime(),
+                hotspot_name: memory.hotspot_name,
+                hotspot_category: memory.hotspot_category
+            }));
+        } catch (error) {
+            console.error('Get memories error:', error);
+            return [];
+        }
     }
 
-    // Delete memory
     async deleteMemory(id) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            const memories = this.getItem('memories') || [];
-            const filtered = memories.filter(m => m.id !== id);
-            this.setItem('memories', filtered);
-            return;
-        }
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['memories'], 'readwrite');
-            const store = transaction.objectStore('memories');
-            const request = store.delete(id);
-            
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    }
+            // Get memory to delete files from storage
+            const { data: memory } = await this.supabase
+                .from('user_memories')
+                .select('*')
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
 
-    // Save route point
-    async saveRoutePoint(point) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            const routes = this.getItem('routes') || [];
-            point.id = Date.now();
-            routes.push(point);
-            this.setItem('routes', routes);
-            return point.id;
-        }
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['routes'], 'readwrite');
-            const store = transaction.objectStore('routes');
-            
-            point.timestamp = point.timestamp || Date.now();
-            const request = store.add(point);
-            
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    // Get today's route
-    async getTodayRoute() {
-        await this.waitForReady();
-        
-        const today = new Date().setHours(0, 0, 0, 0);
-        
-        if (!this.db) {
-            const routes = this.getItem('routes') || [];
-            return routes.filter(point => {
-                const pointDate = new Date(point.timestamp).setHours(0, 0, 0, 0);
-                return pointDate === today;
-            });
-        }
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['routes'], 'readonly');
-            const store = transaction.objectStore('routes');
-            const request = store.getAll();
-            
-            request.onsuccess = () => {
-                const todayRoute = request.result.filter(point => {
-                    const pointDate = new Date(point.timestamp).setHours(0, 0, 0, 0);
-                    return pointDate === today;
-                });
-                resolve(todayRoute);
-            };
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    // Save daily stats
-    async saveDailyStats(stats) {
-        await this.waitForReady();
-        
-        const date = new Date().toISOString().split('T')[0];
-        
-        if (!this.db) {
-            const allStats = this.getItem('dailyStats') || {};
-            allStats[date] = { ...stats, date };
-            this.setItem('dailyStats', allStats);
-            return;
-        }
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['stats'], 'readwrite');
-            const store = transaction.objectStore('stats');
-            
-            stats.date = date;
-            const request = store.put(stats);
-            
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    // Get stats for date
-    async getStatsForDate(date) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            const allStats = this.getItem('dailyStats') || {};
-            return allStats[date] || {};
-        }
-
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['stats'], 'readonly');
-            const store = transaction.objectStore('stats');
-            const request = store.get(date);
-            
-            request.onsuccess = () => resolve(request.result || {});
-            request.onerror = () => reject(request.error);
-        });
-    }
-
-    // Save/Update achievement
-    async saveAchievement(achievement) {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            const achievements = this.getItem('achievements') || [];
-            const index = achievements.findIndex(a => a.id === achievement.id);
-            if (index > -1) {
-                achievements[index] = achievement;
-            } else {
-                achievements.push(achievement);
+            if (memory) {
+                // Delete files from storage
+                if (memory.photo_url) {
+                    await supabaseStorage.deletePhoto(memory.photo_url);
+                }
+                if (memory.audio_url) {
+                    await supabaseStorage.deleteAudio(memory.audio_url);
+                }
             }
-            this.setItem('achievements', achievements);
-            return;
-        }
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['achievements'], 'readwrite');
-            const store = transaction.objectStore('achievements');
-            const request = store.put(achievement);
-            
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
+            // Delete from database
+            const { error } = await this.supabase
+                .from('user_memories')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Delete memory error:', error);
+            throw error;
+        }
     }
 
-    // Get all achievements
+    // ============================================
+    // VISITED HOTSPOTS
+    // ============================================
+
+    async markHotspotAsVisited(hotspot) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
+
+            console.log('Saving visited hotspot to DB:', {
+                user_id: userId,
+                hotspot_api_id: hotspot.id,
+                hotspot_name: hotspot.name
+            });
+
+            const { data, error } = await this.supabase
+                .from('visited_hotspots')
+                .upsert([{
+                    user_id: userId,
+                    hotspot_api_id: hotspot.id,
+                    hotspot_name: hotspot.name,
+                    latitude: hotspot.lat,
+                    longitude: hotspot.lng,
+                    category: hotspot.category
+                }], { onConflict: 'user_id,hotspot_api_id' })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            console.log('✓ Visited hotspot saved to database:', data);
+            return data;
+        } catch (error) {
+            console.error('❌ Mark visited error:', error);
+            throw error;
+        }
+    }
+
+    async getVisitedHotspots() {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) {
+                console.log('No user ID, returning empty visited list');
+                return [];
+            }
+
+            const { data, error } = await this.supabase
+                .from('visited_hotspots')
+                .select('*')
+                .eq('user_id', userId)
+                .order('visited_at', { ascending: false });
+
+            if (error) throw error;
+
+            console.log('✓ Loaded', data?.length || 0, 'visited hotspots from database');
+            return data || [];
+        } catch (error) {
+            console.error('Get visited hotspots error:', error);
+            return [];
+        }
+    }
+
+    async isHotspotVisited(hotspotApiId) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return false;
+
+            const { data, error } = await this.supabase
+                .from('visited_hotspots')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('hotspot_api_id', hotspotApiId)
+                .maybeSingle();
+
+            return !!data;
+        } catch (error) {
+            console.error('Check visited error:', error);
+            return false;
+        }
+    }
+
+    // ============================================
+    // WISHLIST
+    // ============================================
+
+    async addToWishlist(hotspot) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
+
+            const { data, error } = await this.supabase
+                .from('wishlist')
+                .insert([{
+                    user_id: userId,
+                    hotspot_api_id: hotspot.id,
+                    hotspot_name: hotspot.name,
+                    latitude: hotspot.lat,
+                    longitude: hotspot.lng,
+                    category: hotspot.category,
+                    description: hotspot.description
+                }])
+                .select()
+                .single();
+
+            if (error) {
+                // Check if already exists
+                if (error.code === '23505') {
+                    console.log('Item already in wishlist');
+                    return null;
+                }
+                throw error;
+            }
+
+            console.log('Added to wishlist in DB:', data);
+            return data;
+        } catch (error) {
+            console.error('Add to wishlist error:', error);
+            throw error;
+        }
+    }
+
+    async removeFromWishlist(hotspotApiId) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
+
+            const { error } = await this.supabase
+                .from('wishlist')
+                .delete()
+                .eq('user_id', userId)
+                .eq('hotspot_api_id', hotspotApiId);
+
+            if (error) throw error;
+
+            console.log('Removed from wishlist in DB:', hotspotApiId);
+        } catch (error) {
+            console.error('Remove from wishlist error:', error);
+            throw error;
+        }
+    }
+
+    async getWishlist() {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return [];
+
+            const { data, error } = await this.supabase
+                .from('wishlist')
+                .select('*')
+                .eq('user_id', userId)
+                .order('added_at', { ascending: false });
+
+            if (error) throw error;
+
+            console.log('Loaded wishlist from DB:', data);
+            return data || [];
+        } catch (error) {
+            console.error('Get wishlist error:', error);
+            return [];
+        }
+    }
+
+    async isInWishlist(hotspotApiId) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return false;
+
+            const { data, error } = await this.supabase
+                .from('wishlist')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('hotspot_api_id', hotspotApiId)
+                .maybeSingle();
+
+            if (error) throw error;
+            return !!data;
+        } catch (error) {
+            console.error('Check wishlist error:', error);
+            return false;
+        }
+    }
+
+    // ============================================
+    // DAILY STATS
+    // ============================================
+
+    async saveDailyStats(stats) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
+
+            const today = new Date().toISOString().split('T')[0];
+
+            const { data, error } = await this.supabase
+                .from('daily_stats')
+                .upsert([{
+                    user_id: userId,
+                    date: today,
+                    steps: Math.round(stats.stepsToday || 0),
+                    distance_km: parseFloat(((stats.distanceToday || 0) / 1000).toFixed(3)),
+                    time_walked_seconds: Math.round(stats.timeWalkedToday || 0),
+                    places_visited: Math.round(stats.placesVisited || 0),
+                    memories_saved: Math.round(stats.memoriesSaved || 0),
+                    highest_altitude: stats.highestAltitude ? Math.round(stats.highestAltitude) : null
+                }], { onConflict: 'user_id,date' })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Also update user profile totals
+            await this.updateUserProfileStats(stats);
+
+            return data;
+        } catch (error) {
+            console.error('Save daily stats error:', error);
+            // Don't throw - just log and continue
+            return null;
+        }
+    }
+
+    async updateUserProfileStats(stats) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return;
+
+            const { error } = await this.supabase
+                .from('user_profiles')
+                .update({
+                    total_distance_km: parseFloat(((stats.allTimeDistance || 0) / 1000).toFixed(3)),
+                    total_steps: Math.round(stats.stepsToday || 0),
+                    level: Math.round(stats.level || 1),
+                    xp: Math.round(stats.xp || 0)
+                })
+                .eq('id', userId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Update profile stats error:', error);
+        }
+    }
+
+    async getStatsForDate(date) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return {};
+
+            const { data, error } = await this.supabase
+                .from('daily_stats')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('date', date)
+                .maybeSingle();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            if (data) {
+                return {
+                    stepsToday: data.steps,
+                    distanceToday: data.distance_km * 1000,
+                    timeWalkedToday: data.time_walked_seconds,
+                    placesVisited: data.places_visited,
+                    memoriesSaved: data.memories_saved,
+                    highestAltitude: data.highest_altitude
+                };
+            }
+
+            return {};
+        } catch (error) {
+            console.error('Get stats error:', error);
+            return {};
+        }
+    }
+
+    // ============================================
+    // ACHIEVEMENTS
+    // ============================================
+
+    async saveAchievement(achievement) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) throw new Error('User not authenticated');
+
+            const { data, error } = await this.supabase
+                .from('achievements')
+                .upsert([{
+                    user_id: userId,
+                    achievement_key: achievement.id,
+                    title: achievement.name,
+                    description: achievement.description,
+                    progress: Math.round(achievement.progress || 0), // Round to integer
+                    target: Math.round(achievement.requirement.value || 0), // Round to integer
+                    unlocked: achievement.unlocked || false,
+                    unlocked_at: achievement.unlocked ? new Date().toISOString() : null,
+                    reward: Math.round(achievement.reward || 0) // Round to integer
+                }], { onConflict: 'user_id,achievement_key' })
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Save achievement error:', error);
+            // Don't throw - just log and continue
+            return null;
+        }
+    }
+
     async getAllAchievements() {
-        await this.waitForReady();
-        
-        if (!this.db) {
-            return this.getItem('achievements') || [];
-        }
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return [];
 
-        return new Promise((resolve, reject) => {
-            const transaction = this.db.transaction(['achievements'], 'readonly');
-            const store = transaction.objectStore('achievements');
-            const request = store.getAll();
-            
-            request.onsuccess = () => resolve(request.result || []);
-            request.onerror = () => reject(request.error);
-        });
+            const { data, error } = await this.supabase
+                .from('achievements')
+                .select('*')
+                .eq('user_id', userId)
+                .order('unlocked_at', { ascending: false, nullsFirst: false });
+
+            if (error) throw error;
+
+            // Convert to app format
+            return data.map(ach => ({
+                id: ach.achievement_key,
+                name: ach.title,
+                description: ach.description,
+                icon: this.getAchievementIcon(ach.achievement_key),
+                requirement: { type: 'custom', value: ach.target },
+                reward: ach.reward,
+                unlocked: ach.unlocked,
+                progress: ach.progress,
+                unlockedAt: ach.unlocked_at
+            }));
+        } catch (error) {
+            console.error('Get achievements error:', error);
+            return [];
+        }
     }
 
-    // LocalStorage helpers
+    getAchievementIcon(key) {
+        const icons = {
+            'walker_1km': 'fa-walking',
+            'walker_5km': 'fa-hiking',
+            'walker_10km': 'fa-running',
+            'explorer_5': 'fa-map-marked-alt',
+            'memory_10': 'fa-camera',
+            'steps_1000': 'fa-shoe-prints'
+        };
+        return icons[key] || 'fa-trophy';
+    }
+
+    // ============================================
+    // ROUTE POINTS
+    // ============================================
+
+    async saveRoutePoint(point) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return;
+
+            const { data, error } = await this.supabase
+                .from('route_points')
+                .insert([{
+                    user_id: userId,
+                    latitude: point.lat,
+                    longitude: point.lng,
+                    altitude: point.altitude || null,
+                    speed: point.speed || null,
+                    accuracy: point.accuracy || null,
+                    timestamp: point.timestamp ? new Date(point.timestamp).toISOString() : new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data.id;
+        } catch (error) {
+            console.error('Save route point error:', error);
+        }
+    }
+
+    async getTodayRoute() {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return [];
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const { data, error } = await this.supabase
+                .from('route_points')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('timestamp', today.toISOString())
+                .order('timestamp', { ascending: true });
+
+            if (error) throw error;
+
+            return data.map(point => ({
+                lat: point.latitude,
+                lng: point.longitude,
+                altitude: point.altitude,
+                speed: point.speed,
+                accuracy: point.accuracy,
+                timestamp: new Date(point.timestamp).getTime()
+            }));
+        } catch (error) {
+            console.error('Get today route error:', error);
+            return [];
+        }
+    }
+
+    // ============================================
+    // DEVICE LOGS
+    // ============================================
+
+    async logDeviceInfo(deviceInfo) {
+        try {
+            const userId = await this.getCurrentUserId();
+            if (!userId) return;
+
+            const { error } = await this.supabase
+                .from('device_logs')
+                .insert([{
+                    user_id: userId,
+                    device_id: deviceInfo.deviceId,
+                    user_agent: deviceInfo.userAgent,
+                    screen_width: deviceInfo.screenWidth,
+                    screen_height: deviceInfo.screenHeight,
+                    platform: deviceInfo.platform,
+                    timezone: deviceInfo.timezone,
+                    network_type: deviceInfo.online ? 'online' : 'offline'
+                }]);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Log device info error:', error);
+        }
+    }
+
+    // ============================================
+    // LEGACY SUPPORT (LocalStorage fallback)
+    // ============================================
+
     setItem(key, value) {
         try {
             localStorage.setItem(key, JSON.stringify(value));
@@ -305,5 +625,5 @@ class StorageManager {
     }
 }
 
-// Create global instance and wait for it to be ready
+// Create global instance
 const storage = new StorageManager();

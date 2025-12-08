@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - AR Travel Journal</title>
+    <title>Login - Travel Journal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/auth.css">
 </head>
@@ -14,7 +14,7 @@
                 <div class="app-logo">
                     <i class="fas fa-globe-americas"></i>
                 </div>
-                <h1>AR Travel Journal</h1>
+                <h1> Travel Journal</h1>
                 <p>Explore, Capture, Remember</p>
             </div>
 
@@ -23,11 +23,11 @@
                     <label for="email">
                         <i class="fas fa-envelope"></i> Email
                     </label>
-                    <input 
-                        type="email" 
-                        id="email" 
-                        name="email" 
-                        placeholder="Enter your email" 
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="Enter your email"
                         required
                     >
                 </div>
@@ -37,12 +37,13 @@
                         <i class="fas fa-lock"></i> Password
                     </label>
                     <div class="password-input">
-                        <input 
-                            type="password" 
-                            id="password" 
-                            name="password" 
-                            placeholder="Enter your password" 
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="Enter your password"
                             required
+                            minlength="8"
                         >
                         <button type="button" class="toggle-password" onclick="togglePassword()">
                             <i class="fas fa-eye"></i>
@@ -55,23 +56,10 @@
                         <input type="checkbox" id="remember-me">
                         <span>Remember me</span>
                     </label>
-                    <a href="#" class="forgot-password">Forgot password?</a>
                 </div>
 
                 <button type="submit" class="auth-btn primary">
                     <i class="fas fa-sign-in-alt"></i> Login
-                </button>
-
-                <div class="divider">
-                    <span>OR</span>
-                </div>
-
-                <button type="button" class="auth-btn google" onclick="loginWithGoogle()">
-                    <i class="fab fa-google"></i> Continue with Google
-                </button>
-
-                <button type="button" class="auth-btn facebook" onclick="loginWithFacebook()">
-                    <i class="fab fa-facebook-f"></i> Continue with Facebook
                 </button>
 
                 <div class="auth-footer">
@@ -89,6 +77,9 @@
         </div>
     </div>
 
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config/supabase-config.js"></script>
     <script src="js/auth.js"></script>
 </body>
 </html>

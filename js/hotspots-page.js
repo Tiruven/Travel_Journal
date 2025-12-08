@@ -1,4 +1,4 @@
-// Hotspots Explorer Page with Navigation Support
+// Hotspots Explorer Page with Wishlist Filter
 
 class HotspotsExplorer {
     constructor() {
@@ -11,13 +11,19 @@ class HotspotsExplorer {
             search: ''
         };
         this.userPosition = null;
-        this.wishlistView = false;
+        this.wishlistView = false; // Track wishlist filter state
         this.init();
     }
 
     async init() {
         this.showLoading(true);
+
         try {
+            // Check if dependencies are loaded
+            if (typeof storage === 'undefined') {
+                throw new Error('Storage not loaded');
+            }
+
             await storage.waitForReady();
 
             try {
@@ -27,6 +33,8 @@ class HotspotsExplorer {
             }
 
             await hotspotManager.loadHotspots();
+            await hotspotManager.syncWishlist(); // Sync wishlist from database
+
             this.hotspots = hotspotManager.hotspots;
             console.log(`Loaded ${this.hotspots.length} hotspots for display`);
 
@@ -40,7 +48,6 @@ class HotspotsExplorer {
             this.setupEventListeners();
             this.updateStats();
             this.applyFilters();
-
         } catch (error) {
             console.error('Initialization error:', error);
             showNotification('Failed to load hotspots', 3000);
@@ -61,6 +68,7 @@ class HotspotsExplorer {
     }
 
     setupEventListeners() {
+        // Search functionality
         const searchInput = document.getElementById('search-input');
         const clearSearch = document.getElementById('clear-search');
 
@@ -85,6 +93,7 @@ class HotspotsExplorer {
             });
         }
 
+        // Filter toggle
         const filterToggle = document.getElementById('filter-toggle');
         const filterPanel = document.getElementById('filter-panel');
 
@@ -95,42 +104,46 @@ class HotspotsExplorer {
             });
         }
 
+        // Category filters
         document.querySelectorAll('[data-category]').forEach(chip => {
             chip.addEventListener('click', () => {
                 document.querySelectorAll('[data-category]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
-                
+
                 this.currentFilters.category = chip.dataset.category;
                 this.applyFilters();
             });
         });
 
+        // Status filters
         document.querySelectorAll('[data-status]').forEach(chip => {
             chip.addEventListener('click', () => {
                 document.querySelectorAll('[data-status]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
-                
+
                 this.currentFilters.status = chip.dataset.status;
                 this.applyFilters();
             });
         });
 
+        // Sort filters
         document.querySelectorAll('[data-sort]').forEach(chip => {
             chip.addEventListener('click', () => {
                 document.querySelectorAll('[data-sort]').forEach(c =>
                     c.classList.remove('active')
                 );
                 chip.classList.add('active');
-                
+
                 this.currentFilters.sort = chip.dataset.sort;
                 this.applyFilters();
             });
         });
 
+        // Close modal
         document.querySelectorAll('.close-modal').forEach(btn => {
             btn.addEventListener('click', () => {
                 const modal = document.getElementById('detail-modal');
@@ -139,23 +152,52 @@ class HotspotsExplorer {
                 }
             });
         });
+
+        // Wishlist button in header - TOGGLE FILTER
+        const wishlistBtn = document.getElementById('wishlist-filter-btn');
+        if (wishlistBtn) {
+            wishlistBtn.addEventListener('click', () => {
+                this.toggleWishlistFilter();
+            });
+        }
+    }
+
+    // Toggle wishlist filter
+    toggleWishlistFilter() {
+        this.wishlistView = !this.wishlistView;
+
+        const wishlistBtn = document.getElementById('wishlist-filter-btn');
+        if (wishlistBtn) {
+            if (this.wishlistView) {
+                wishlistBtn.classList.add('active');
+                showNotification('Showing wishlist only', 2000);
+            } else {
+                wishlistBtn.classList.remove('active');
+                showNotification('Showing all hotspots', 2000);
+            }
+        }
+
+        this.applyFilters();
     }
 
     applyFilters() {
         this.filteredHotspots = this.hotspots;
 
+        // Category filter
         if (this.currentFilters.category !== 'all') {
             this.filteredHotspots = this.filteredHotspots.filter(
                 h => h.category === this.currentFilters.category
             );
         }
 
+        // Status filter (visited/unvisited)
         if (this.currentFilters.status === 'visited') {
             this.filteredHotspots = this.filteredHotspots.filter(h => h.visited);
         } else if (this.currentFilters.status === 'unvisited') {
             this.filteredHotspots = this.filteredHotspots.filter(h => !h.visited);
         }
 
+        // Wishlist filter (NEW)
         if (this.wishlistView) {
             const wishlist = hotspotManager.wishlist;
             this.filteredHotspots = this.filteredHotspots.filter(
@@ -163,6 +205,7 @@ class HotspotsExplorer {
             );
         }
 
+        // Search filter
         if (this.currentFilters.search) {
             this.filteredHotspots = this.filteredHotspots.filter(h =>
                 (h.name || '').toLowerCase().includes(this.currentFilters.search) ||
@@ -176,7 +219,7 @@ class HotspotsExplorer {
     }
 
     sortHotspots() {
-        switch(this.currentFilters.sort) {
+        switch (this.currentFilters.sort) {
             case 'distance':
                 this.filteredHotspots.sort((a, b) => (a.distance || 0) - (b.distance || 0));
                 break;
@@ -193,9 +236,7 @@ class HotspotsExplorer {
         const container = document.getElementById('hotspots-container');
         const emptyState = document.getElementById('empty-state');
 
-        if (!container) {
-            return;
-        }
+        if (!container) return;
 
         if (this.filteredHotspots.length === 0) {
             container.innerHTML = '';
@@ -217,9 +258,9 @@ class HotspotsExplorer {
                 <div class="hotspot-card" onclick="hotspotsExplorer.showDetail('${hotspot.id}')">
                     <div class="hotspot-image">
                         ${hotspot.photos && hotspot.photos.length > 0
-                            ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
-                            : `<i class="fas ${icon}"></i>`
-                        }
+                    ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
+                    : `<i class="fas ${icon}"></i>`
+                }
                     </div>
                     <div class="hotspot-content">
                         <div class="hotspot-header">
@@ -279,9 +320,9 @@ class HotspotsExplorer {
         const detailContent = `
             <div class="detail-header">
                 ${hotspot.photos && hotspot.photos.length > 0
-                    ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
-                    : `<i class="fas ${icon} detail-header-icon"></i>`
-                }
+                ? `<img src="${hotspot.photos[0]}" alt="${this.escapeHtml(hotspot.name || 'Hotspot')}">`
+                : `<i class="fas ${icon} detail-header-icon"></i>`
+            }
             </div>
             <div class="detail-body">
                 <div class="detail-title">
@@ -380,19 +421,29 @@ class HotspotsExplorer {
 
         const detailContentDiv = document.getElementById('detail-content');
         const detailModal = document.getElementById('detail-modal');
-        
+
         if (detailContentDiv && detailModal) {
             detailContentDiv.innerHTML = detailContent;
             detailModal.classList.remove('hidden');
         }
     }
 
-    toggleWishlist(hotspotId) {
+    async toggleWishlist(hotspotId) {
+        console.log('=== TOGGLE WISHLIST ===');
+        console.log('Hotspot ID:', hotspotId);
+        console.log('Currently in wishlist?', hotspotManager.isInWishlist(hotspotId));
+
         if (hotspotManager.isInWishlist(hotspotId)) {
-            hotspotManager.removeFromWishlist(hotspotId);
+            console.log('Removing from wishlist...');
+            await hotspotManager.removeFromWishlist(hotspotId);
         } else {
-            hotspotManager.addToWishlist(hotspotId);
+            console.log('Adding to wishlist...');
+            await hotspotManager.addToWishlist(hotspotId);
         }
+
+        console.log('New wishlist:', hotspotManager.wishlist);
+        console.log('======================');
+
         this.updateStats();
         this.applyFilters();
 
@@ -402,14 +453,20 @@ class HotspotsExplorer {
         }
     }
 
-    markAsVisited(hotspotId) {
-        hotspotManager.markHotspotAsVisited(hotspotId);
+    async markAsVisited(hotspotId) {
+        console.log('=== HOTSPOTS PAGE: MARK AS VISITED ===');
+        console.log('Hotspot ID:', hotspotId);
+
+        await hotspotManager.markHotspotAsVisited(hotspotId);
+
+        console.log('Updating stats and filters...');
         this.updateStats();
         this.applyFilters();
         this.showDetail(hotspotId);
+
+        console.log('===================================');
     }
 
-    // NEW: Navigate to hotspot - saves to localStorage and redirects to index
     navigateToHotspot(hotspotId) {
         const hotspot = hotspotManager.getHotspotById(hotspotId);
         if (!hotspot) return;
@@ -435,41 +492,22 @@ class HotspotsExplorer {
         if (totalElement) {
             totalElement.textContent = this.hotspots.length;
         }
-        
+
         if (visitedElement) {
             visitedElement.textContent = hotspotManager.getVisitedHotspots().length;
         }
-        
+
         const wishlistCount = hotspotManager.wishlist.length;
-        
+
         if (wishlistTotalElement) {
             wishlistTotalElement.textContent = wishlistCount;
         }
-        
+
         if (wishlistCountElement) {
             wishlistCountElement.textContent = wishlistCount;
+            wishlistCountElement.classList.toggle('hidden', wishlistCount === 0);
         }
     }
-}
-
-// Global function for wishlist view toggle
-function toggleWishlistView() {
-    if (!window.hotspotsExplorer) return;
-    
-    hotspotsExplorer.wishlistView = !hotspotsExplorer.wishlistView;
-    
-    const wishlistBtn = document.querySelector('.wishlist-btn');
-    if (wishlistBtn) {
-        if (hotspotsExplorer.wishlistView) {
-            wishlistBtn.style.background = 'var(--danger-color)';
-            wishlistBtn.style.color = 'white';
-        } else {
-            wishlistBtn.style.background = 'var(--light-bg)';
-            wishlistBtn.style.color = 'var(--danger-color)';
-        }
-    }
-
-    hotspotsExplorer.applyFilters();
 }
 
 // Initialize

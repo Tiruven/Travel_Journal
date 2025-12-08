@@ -115,6 +115,10 @@ body {
     font-weight: bold;
 }
 
+.badge.hidden {
+    display: none;
+}
+
 /* Search Container */
 .search-container {
     padding: 16px;
@@ -153,8 +157,23 @@ body {
     border: none;
     color: var(--text-light);
     cursor: pointer;
-    padding: 4px;
+    padding: 4px 8px;
     font-size: 16px;
+    transition: color 0.3s;
+}
+
+.clear-btn:hover {
+    color: var(--danger-color);
+}
+
+.clear-btn.hidden {
+    display: none;
+}
+
+/* Wishlist active state */
+.wishlist-btn.active {
+    background: var(--danger-color) !important;
+    color: white !important;
 }
 
 .filter-btn {

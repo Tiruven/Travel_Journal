@@ -1,25 +1,53 @@
-// Authentication Manager
+// Authentication Manager with Supabase - Simplified
 class AuthManager {
     constructor() {
         this.currentUser = null;
+        this.supabase = supabaseClient;
         this.init();
     }
 
-    init() {
-        // Check if user is already logged in
-        const savedUser = localStorage.getItem('currentUser');
-        if (savedUser) {
-            this.currentUser = JSON.parse(savedUser);
-            // Redirect to main app if on auth page
-            if (window.location.pathname.includes('login.html') || 
-                window.location.pathname.includes('register.html')) {
-                window.location.href = 'index.html';
+    async init() {
+        // Check for existing session
+        try {
+            const { data: { session }, error } = await this.supabase.auth.getSession();
+            
+            if (error) {
+                console.error('Session error:', error);
             }
+            
+            if (session) {
+                this.currentUser = session.user;
+                this.redirectIfAuthenticated();
+            }
+        } catch (error) {
+            console.error('Init error:', error);
         }
+
+        // Listen for auth state changes
+        this.supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth event:', event);
+            
+            if (event === 'SIGNED_IN' && session) {
+                this.currentUser = session.user;
+                await this.handleSuccessfulLogin(session.user);
+            } else if (event === 'SIGNED_OUT') {
+                this.currentUser = null;
+                this.handleLogout();
+            }
+        });
 
         // Setup form listeners
         this.setupLoginForm();
         this.setupRegisterForm();
+    }
+
+    redirectIfAuthenticated() {
+        const authPages = ['login.html', 'register.html'];
+        const currentPage = window.location.pathname.split('/').pop();
+        
+        if (authPages.includes(currentPage) && this.currentUser) {
+            window.location.href = 'index.html';
+        }
     }
 
     setupLoginForm() {
@@ -37,7 +65,9 @@ class AuthManager {
             // Password strength checker
             const passwordInput = document.getElementById('password');
             if (passwordInput) {
-                passwordInput.addEventListener('input', (e) => this.checkPasswordStrength(e.target.value));
+                passwordInput.addEventListener('input', (e) => 
+                    this.checkPasswordStrength(e.target.value)
+                );
             }
         }
     }
@@ -45,9 +75,8 @@ class AuthManager {
     async handleLogin(e) {
         e.preventDefault();
         
-        const email = document.getElementById('email').value;
+        const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        const rememberMe = document.getElementById('remember-me').checked;
 
         // Basic validation
         if (!this.validateEmail(email)) {
@@ -66,46 +95,40 @@ class AuthManager {
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
         submitBtn.disabled = true;
 
-        // Simulate API call (replace with actual backend)
-        setTimeout(() => {
-            // Get stored users
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
-            const user = users.find(u => u.email === email && u.password === password);
+        try {
+            const { data, error } = await this.supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
 
-            if (user) {
-                // Success
-                this.currentUser = {
-                    id: user.id,
-                    username: user.username,
-                    email: user.email,
-                    loginDate: new Date().toISOString()
-                };
+            if (error) throw error;
 
-                if (rememberMe) {
-                    localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-                } else {
-                    sessionStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-                }
-
-                // Redirect to main app
-                window.location.href = 'index.html';
-            } else {
-                // Failure
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+            console.log('Login successful');
+            
+            // Redirect will happen via onAuthStateChange
+            
+        } catch (error) {
+            console.error('Login error:', error);
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
+            if (error.message.includes('Invalid login credentials')) {
                 this.showError('Invalid email or password');
+            } else if (error.message.includes('Email not confirmed')) {
+                this.showError('Please check your email and confirm your account first');
+            } else {
+                this.showError(error.message || 'Login failed. Please try again.');
             }
-        }, 1500);
+        }
     }
 
     async handleRegister(e) {
         e.preventDefault();
-
-        const username = document.getElementById('username').value;
-        const email = document.getElementById('email').value;
+        
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
         const confirmPassword = document.getElementById('confirm-password').value;
-        const terms = document.getElementById('terms').checked;
 
         // Validation
         if (username.length < 3) {
@@ -128,55 +151,125 @@ class AuthManager {
             return;
         }
 
-        if (!terms) {
-            this.showError('Please accept the Terms of Service');
-            return;
-        }
-
         // Show loading
         const submitBtn = e.target.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
         submitBtn.disabled = true;
 
-        // Simulate API call
-        setTimeout(() => {
-            // Get existing users
-            const users = JSON.parse(localStorage.getItem('users') || '[]');
+        try {
+            // Sign up the user
+            const { data, error } = await this.supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: {
+                        username: username,
+                    }
+                }
+            });
 
-            // Check if email already exists
-            if (users.find(u => u.email === email)) {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                this.showError('Email already registered');
-                return;
+            if (error) throw error;
+
+            if (data.user) {
+                // If email confirmation is disabled, user can login immediately
+                if (data.session) {
+                    this.showSuccess('Account created successfully! Redirecting...');
+                    // Will redirect via onAuthStateChange
+                } else {
+                    // If confirmation is required
+                    this.showSuccess('Account created! Please check your email to verify your account.');
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 3000);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Registration error:', error);
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
+            if (error.message.includes('already registered') || error.message.includes('already exists')) {
+                this.showError('Email already registered. Please login instead.');
+            } else {
+                this.showError(error.message || 'Registration failed. Please try again.');
+            }
+        }
+    }
+
+    async handleSuccessfulLogin(user) {
+        console.log('User logged in:', user.email);
+        
+        // Ensure user profile exists
+        await this.ensureUserProfile(user);
+        
+        // Store user info in localStorage
+        localStorage.setItem('currentUser', JSON.stringify({
+            id: user.id,
+            email: user.email,
+            username: user.user_metadata?.username || user.email.split('@')[0]
+        }));
+        
+        // Redirect to main app
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 500);
+    }
+
+    async ensureUserProfile(user) {
+        try {
+            // Check if profile exists
+            const { data: existingProfile, error: fetchError } = await this.supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (fetchError) {
+                console.error('Error fetching profile:', fetchError);
             }
 
-            // Create new user
-            const newUser = {
-                id: this.generateUserId(),
-                username,
-                email,
-                password, // In production, hash this!
-                createdAt: new Date().toISOString()
-            };
+            if (!existingProfile) {
+                console.log('Creating user profile...');
+                // Profile doesn't exist, create it
+                const { data, error: insertError } = await this.supabase
+                    .from('user_profiles')
+                    .insert([{
+                        id: user.id,
+                        username: user.user_metadata?.username || user.email.split('@')[0],
+                        avatar_url: user.user_metadata?.avatar_url || null
+                    }])
+                    .select()
+                    .single();
 
-            users.push(newUser);
-            localStorage.setItem('users', JSON.stringify(users));
+                if (insertError) {
+                    console.error('Error creating profile:', insertError);
+                } else {
+                    console.log('Profile created:', data);
+                }
+            } else {
+                console.log('Profile already exists');
+            }
+        } catch (error) {
+            console.error('Error ensuring user profile:', error);
+        }
+    }
 
-            // Auto login
-            this.currentUser = {
-                id: newUser.id,
-                username: newUser.username,
-                email: newUser.email,
-                loginDate: new Date().toISOString()
-            };
+    handleLogout() {
+        localStorage.removeItem('currentUser');
+        window.location.href = 'login.html';
+    }
 
-            localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-
-            // Redirect
-            window.location.href = 'index.html';
-        }, 1500);
+    async logout() {
+        try {
+            const { error } = await this.supabase.auth.signOut();
+            if (error) throw error;
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Force logout anyway
+            this.handleLogout();
+        }
     }
 
     validateEmail(email) {
@@ -219,6 +312,8 @@ class AuthManager {
         if (errorDiv) {
             errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
+            errorDiv.style.background = '#fee2e2';
+            errorDiv.style.color = 'var(--danger-color)';
             
             setTimeout(() => {
                 errorDiv.classList.add('hidden');
@@ -226,48 +321,30 @@ class AuthManager {
         }
     }
 
-    generateUserId() {
-        return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    }
-
-    logout() {
-        localStorage.removeItem('currentUser');
-        sessionStorage.removeItem('currentUser');
-        this.currentUser = null;
-        window.location.href = 'login.html';
+    showSuccess(message) {
+        const errorDiv = document.getElementById('error-message');
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+            errorDiv.style.background = '#d1fae5';
+            errorDiv.style.color = '#065f46';
+        }
     }
 }
 
 // Toggle password visibility
 function togglePassword(inputId = 'password') {
     const input = document.getElementById(inputId);
-    const button = input.nextElementSibling?.querySelector('.toggle-password');
+    const button = input?.nextElementSibling?.querySelector('.toggle-password');
     const icon = button?.querySelector('i');
     
-    if (input.type === 'password') {
+    if (input && input.type === 'password') {
         input.type = 'text';
         if (icon) icon.className = 'fas fa-eye-slash';
-    } else {
+    } else if (input) {
         input.type = 'password';
         if (icon) icon.className = 'fas fa-eye';
     }
-}
-
-// Social login functions (placeholder - implement with actual OAuth)
-function loginWithGoogle() {
-    alert('Google OAuth integration coming soon!\nFor now, please use email/password.');
-}
-
-function registerWithGoogle() {
-    alert('Google OAuth integration coming soon!\nFor now, please use email/password.');
-}
-
-function loginWithFacebook() {
-    alert('Facebook OAuth integration coming soon!\nFor now, please use email/password.');
-}
-
-function registerWithFacebook() {
-    alert('Facebook OAuth integration coming soon!\nFor now, please use email/password.');
 }
 
 // Initialize auth manager

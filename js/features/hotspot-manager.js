@@ -6,25 +6,25 @@ class HotspotManager {
         this.wishlist = [];
         this.categories = ['scenic', 'historical', 'beach', 'food', 'hidden', 'activity'];
         this.activeFilters = ['all'];
-        
-        // NEW: Track last fetch location
+
+        // Track last fetch location
         this.lastFetchLocation = null;
-        this.RELOAD_DISTANCE = 2000; // Reload when moved 2km from last fetch
-        this.FETCH_RADIUS = 5000; // Fetch 5km radius
+        this.RELOAD_DISTANCE = 2000;
+        this.FETCH_RADIUS = 5000;
         this.lastFetchTime = null;
-        this.MIN_FETCH_INTERVAL = 60000; // Don't fetch more than once per minute
-        
+        this.MIN_FETCH_INTERVAL = 60000;
+
         this.init();
     }
 
     async init() {
         await this.loadHotspots();
         await this.loadWishlist();
+        await this.syncVisitedHotspots();
         this.setupCategoryFilters();
         this.startLocationMonitoring();
     }
 
-    // NEW: Monitor location changes and auto-reload hotspots
     startLocationMonitoring() {
         if (gpsTracker) {
             gpsTracker.onPositionUpdate((position) => {
@@ -33,14 +33,11 @@ class HotspotManager {
         }
     }
 
-    // NEW: Check if we should reload hotspots
     async checkAndReloadHotspots(position) {
-        // Don't check too frequently
         if (this.lastFetchTime && Date.now() - this.lastFetchTime < this.MIN_FETCH_INTERVAL) {
             return;
         }
 
-        // Check if we've moved far enough
         if (this.lastFetchLocation) {
             const distance = calculateDistance(
                 this.lastFetchLocation.lat,
@@ -56,11 +53,10 @@ class HotspotManager {
         }
     }
 
-    // NEW: Reload hotspots for new location
     async reloadHotspotsForLocation(position) {
         try {
             showNotification('Loading nearby hotspots...', 2000);
-            
+
             const newHotspots = await geoapifyService.fetchNearbyPlaces(
                 position.lat,
                 position.lng,
@@ -69,20 +65,15 @@ class HotspotManager {
             );
 
             if (newHotspots.length > 0) {
-                // Merge with existing hotspots (keep visited status)
                 this.mergeHotspots(newHotspots);
-                
-                // Save updated list
                 storage.setItem('hotspots', this.hotspots);
-                
-                // Update last fetch location
+
                 this.lastFetchLocation = {
                     lat: position.lat,
                     lng: position.lng
                 };
                 this.lastFetchTime = Date.now();
-                
-                // Save fetch location
+
                 localStorage.setItem('last_hotspot_fetch', JSON.stringify({
                     location: this.lastFetchLocation,
                     time: this.lastFetchTime
@@ -91,7 +82,6 @@ class HotspotManager {
                 console.log(`Loaded ${newHotspots.length} new hotspots`);
                 showNotification(`Found ${newHotspots.length} places nearby!`, 3000);
 
-                // Update map markers if on main page
                 if (window.mapManager && window.mapManager.isInitialized) {
                     window.mapManager.updateHotspotMarkers();
                 }
@@ -101,37 +91,30 @@ class HotspotManager {
         }
     }
 
-    // NEW: Merge new hotspots with existing ones, keeping visited status
     mergeHotspots(newHotspots) {
-        // Create a map of existing hotspots by location (for quick lookup)
         const existingMap = new Map();
         this.hotspots.forEach(hotspot => {
             const key = `${hotspot.lat.toFixed(4)}_${hotspot.lng.toFixed(4)}`;
             existingMap.set(key, hotspot);
         });
 
-        // Process new hotspots
         newHotspots.forEach(newHotspot => {
             const key = `${newHotspot.lat.toFixed(4)}_${newHotspot.lng.toFixed(4)}`;
             const existing = existingMap.get(key);
 
             if (existing) {
-                // Update existing hotspot but keep visited status
                 newHotspot.visited = existing.visited;
                 newHotspot.notified = existing.notified;
-                
-                // Replace in array
+
                 const index = this.hotspots.findIndex(h => h.id === existing.id);
                 if (index !== -1) {
                     this.hotspots[index] = newHotspot;
                 }
             } else {
-                // New hotspot - add it
                 this.hotspots.push(newHotspot);
             }
         });
 
-        // Remove hotspots that are too far away (> 10km)
         const userPos = gpsTracker.currentPosition;
         if (userPos) {
             this.hotspots = this.hotspots.filter(hotspot => {
@@ -141,40 +124,39 @@ class HotspotManager {
                     hotspot.lat,
                     hotspot.lng
                 );
-                return distance < 10000; // Keep within 10km
+                return distance < 10000;
             });
         }
     }
 
     async loadHotspots() {
         await storage.waitForReady();
-        
-        // Load last fetch info
+
         const lastFetch = localStorage.getItem('last_hotspot_fetch');
         if (lastFetch) {
             const fetchData = JSON.parse(lastFetch);
             this.lastFetchLocation = fetchData.location;
             this.lastFetchTime = fetchData.time;
         }
-        
+
         const savedHotspots = storage.getItem('hotspots');
-       
+
         if (savedHotspots && savedHotspots.length > 0) {
             console.log(`Loaded ${savedHotspots.length} hotspots from storage`);
             this.hotspots = savedHotspots;
-            
-            // Check if we need to refresh based on current location
+
+            await this.syncVisitedHotspots();
+
             const position = gpsTracker.currentPosition;
             if (position) {
                 await this.checkAndReloadHotspots(position);
             }
         } else {
-            // No saved hotspots - fetch fresh
             const position = await gpsTracker.getCurrentPosition();
-           
+
             if (position && geoapifyService.apiKey === '199b4ac789c040c180ad396100269fdd') {
                 console.log('Fetching hotspots from Geoapify...');
-               
+
                 try {
                     this.hotspots = await geoapifyService.fetchNearbyPlaces(
                         position.lat,
@@ -182,17 +164,19 @@ class HotspotManager {
                         ['tourism', 'entertainment', 'natural', 'beach', 'catering', 'leisure'],
                         this.FETCH_RADIUS
                     );
-                   
+
                     if (this.hotspots.length > 0) {
                         console.log(`✓ Loaded ${this.hotspots.length} hotspots from Geoapify`);
                         storage.setItem('hotspots', this.hotspots);
-                        
+
+                        await this.syncVisitedHotspots();
+
                         this.lastFetchLocation = {
                             lat: position.lat,
                             lng: position.lng
                         };
                         this.lastFetchTime = Date.now();
-                        
+
                         localStorage.setItem('last_hotspot_fetch', JSON.stringify({
                             location: this.lastFetchLocation,
                             time: this.lastFetchTime
@@ -217,22 +201,68 @@ class HotspotManager {
         return this.hotspots;
     }
 
+    // WISHLIST METHODS - CLEANED UP
     async loadWishlist() {
-        this.wishlist = storage.getItem('wishlist') || [];
-    }
-
-    addToWishlist(hotspotId) {
-        if (!this.wishlist.includes(hotspotId)) {
-            this.wishlist.push(hotspotId);
-            storage.setItem('wishlist', this.wishlist);
-            showNotification('Added to wishlist!', 2000);
+        try {
+            const wishlistData = await storage.getWishlist();
+            this.wishlist = wishlistData.map(item => item.hotspot_api_id);
+            console.log('✓ Wishlist loaded from database:', this.wishlist.length, 'items');
+        } catch (error) {
+            console.error('Load wishlist error:', error);
+            this.wishlist = [];
         }
     }
 
-    removeFromWishlist(hotspotId) {
-        this.wishlist = this.wishlist.filter(id => id !== hotspotId);
-        storage.setItem('wishlist', this.wishlist);
-        showNotification('Removed from wishlist', 2000);
+    async addToWishlist(hotspotId) {
+        const hotspot = this.getHotspotById(hotspotId);
+        if (!hotspot) {
+            console.error('Hotspot not found:', hotspotId);
+            return;
+        }
+
+        try {
+            // Check if already in wishlist
+            if (this.wishlist.includes(hotspotId)) {
+                console.log('Already in wishlist');
+                return;
+            }
+
+            // Add to database
+            await storage.addToWishlist(hotspot);
+
+            // Update local array
+            this.wishlist.push(hotspotId);
+
+            console.log('✓ Added to wishlist:', hotspot.name, 'Total:', this.wishlist.length);
+            showNotification('❤️ Added to wishlist!', 2000);
+
+            // Trigger UI updates
+            this.notifyWishlistChange();
+
+        } catch (error) {
+            console.error('Add to wishlist error:', error);
+            showNotification('Failed to add to wishlist', 3000);
+        }
+    }
+
+    async removeFromWishlist(hotspotId) {
+        try {
+            // Remove from database
+            await storage.removeFromWishlist(hotspotId);
+
+            // Update local array
+            this.wishlist = this.wishlist.filter(id => id !== hotspotId);
+
+            console.log('✓ Removed from wishlist:', hotspotId, 'Total:', this.wishlist.length);
+            showNotification('Removed from wishlist', 2000);
+
+            // Trigger UI updates
+            this.notifyWishlistChange();
+
+        } catch (error) {
+            console.error('Remove from wishlist error:', error);
+            showNotification('Failed to remove from wishlist', 3000);
+        }
     }
 
     isInWishlist(hotspotId) {
@@ -243,10 +273,97 @@ class HotspotManager {
         return this.hotspots.filter(h => this.wishlist.includes(h.id));
     }
 
+    notifyWishlistChange() {
+        if (window.mapManager && window.mapManager.updateHotspotMarkers) {
+            window.mapManager.updateHotspotMarkers();
+        }
+
+        if (window.hotspotsExplorer) {
+            window.hotspotsExplorer.updateStats();
+            window.hotspotsExplorer.applyFilters();
+        }
+    }
+
+    async syncWishlist() {
+        await this.loadWishlist();
+    }
+
+    // VISITED HOTSPOTS
+    async syncVisitedHotspots() {
+        try {
+            console.log('=== SYNCING VISITED HOTSPOTS ===');
+            const visited = await storage.getVisitedHotspots();
+            const visitedIds = visited.map(v => v.hotspot_api_id);
+
+            console.log('Visited hotspots from database:', visitedIds.length);
+            console.log('IDs:', visitedIds);
+
+            let syncedCount = 0;
+            this.hotspots.forEach(hotspot => {
+                if (visitedIds.includes(hotspot.id)) {
+                    hotspot.visited = true;
+                    syncedCount++;
+                }
+            });
+
+            console.log('✓ Synced', syncedCount, 'visited hotspots to local data');
+            console.log('==============================');
+        } catch (error) {
+            console.error('Sync visited hotspots error:', error);
+        }
+    }
+
+    async markHotspotAsVisited(hotspotId) {
+        const hotspot = this.hotspots.find(h => h.id === hotspotId);
+
+        if (hotspot) {
+            if (!hotspot.visited) {
+                hotspot.visited = true;
+
+                try {
+                    console.log('=== MARKING AS VISITED ===');
+                    console.log('Hotspot:', hotspot.name);
+                    console.log('ID:', hotspotId);
+
+                    // Save to Supabase database
+                    const result = await storage.markHotspotAsVisited(hotspot);
+                    console.log('✓ Saved to database:', result);
+
+                    // Save to localStorage as backup
+                    storage.setItem('hotspots', this.hotspots);
+
+                    if (typeof statsTracker !== 'undefined') {
+                        statsTracker.incrementPlacesVisited();
+                    }
+
+                    if (typeof achievementsManager !== 'undefined') {
+                        await achievementsManager.checkAchievements();
+                    }
+
+                    // Get total visited count
+                    const visitedCount = this.getVisitedHotspots().length;
+                    console.log('Total visited hotspots:', visitedCount);
+                    console.log('========================');
+
+                    showNotification(`✓ Visited: ${hotspot.name}`, 3000);
+                } catch (error) {
+                    console.error('❌ Mark visited error:', error);
+                    hotspot.visited = false;
+                    showNotification('Failed to mark as visited', 3000);
+                }
+            } else {
+                showNotification(`Already visited: ${hotspot.name}`, 2000);
+            }
+        } else {
+            console.error(`Hotspot not found: ${hotspotId}`);
+        }
+    }
+
     getVisitedHotspots() {
         return this.hotspots.filter(h => h.visited);
     }
 
+    // OTHER METHODS
     generateDemoHotspots(lat, lng, count = 20) {
         const hotspots = [];
         const radius = 0.02;
@@ -263,7 +380,7 @@ class HotspotManager {
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 * i) / count;
             const distance = radius * (0.5 + Math.random() * 0.5);
-           
+
             const hotspotLat = lat + distance * Math.cos(angle);
             const hotspotLng = lng + distance * Math.sin(angle);
             const category = this.categories[Math.floor(Math.random() * this.categories.length)];
@@ -308,15 +425,15 @@ class HotspotManager {
 
     setupCategoryFilters() {
         const filterButtons = document.querySelectorAll('.filter-btn');
-       
+
         filterButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const category = btn.dataset.category;
                 this.toggleCategoryFilter(category);
-               
+
                 filterButtons.forEach(b => b.classList.remove('active'));
-               
+
                 if (this.activeFilters.includes('all')) {
                     const allBtn = document.querySelector('[data-category="all"]');
                     if (allBtn) allBtn.classList.add('active');
@@ -339,7 +456,7 @@ class HotspotManager {
             this.activeFilters = ['all'];
         } else {
             this.activeFilters = this.activeFilters.filter(f => f !== 'all');
-           
+
             const index = this.activeFilters.indexOf(category);
             if (index > -1) {
                 this.activeFilters.splice(index, 1);
@@ -378,27 +495,6 @@ class HotspotManager {
             .sort((a, b) => a.distance - b.distance);
     }
 
-    markHotspotAsVisited(hotspotId) {
-        const hotspot = this.hotspots.find(h => h.id === hotspotId);
-        
-        if (hotspot) {
-            if (!hotspot.visited) {
-                hotspot.visited = true;
-                storage.setItem('hotspots', this.hotspots);
-                
-                if (typeof statsTracker !== 'undefined') {
-                    statsTracker.incrementPlacesVisited();
-                }
-                
-                showNotification(`✓ Visited: ${hotspot.name}`, 3000);
-            } else {
-                showNotification(`Already visited: ${hotspot.name}`, 2000);
-            }
-        } else {
-            console.error(`Hotspot not found: ${hotspotId}`);
-        }
-    }
-
     getHotspotById(id) {
         return this.hotspots.find(h => h.id === id);
     }
@@ -424,13 +520,12 @@ class HotspotManager {
         hotspot.id = generateId();
         this.hotspots.push(hotspot);
         storage.setItem('hotspots', this.hotspots);
-       
+
         if (window.mapManager) {
             window.mapManager.updateHotspotMarkers();
         }
     }
 
-    // NEW: Manual refresh function
     async forceRefreshHotspots() {
         const position = gpsTracker.currentPosition;
         if (!position) {
@@ -438,9 +533,11 @@ class HotspotManager {
             return;
         }
 
-        this.lastFetchTime = 0; // Reset timer
+        this.lastFetchTime = 0;
         await this.reloadHotspotsForLocation(position);
     }
+
+
 }
 
 // Create global instance

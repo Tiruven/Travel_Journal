@@ -44,19 +44,22 @@ class TravelJournalApp {
     async initializeManagers() {
         try {
             console.log('Initializing map...');
-            
+
             // IMPORTANT: Initialize mapManager globally
             if (!window.mapManager) {
                 window.mapManager = new MapManager();
             }
-            
+
             await window.mapManager.init();
             console.log('Map initialized');
+
+            // Load wishlist after map is initialized
+            await hotspotManager.syncWishlist();
+            console.log('Wishlist synced');
 
             console.log('Initializing motion sensors...');
             await motionSensors.start();
             console.log('Motion sensors initialized');
-
         } catch (error) {
             console.error('Manager initialization error:', error);
             throw error;
@@ -154,21 +157,12 @@ class TravelJournalApp {
             case 'text':
                 this.openTextModal();
                 break;
-            case 'memory-orbs':
-                this.toggleMemoryOrbs();
-                break;
             case 'storage':
                 this.openStorageModal();
                 break;
             case 'explore':
                 window.location.href = 'hotspots.html';
                 break;
-        }
-    }
-
-    toggleMemoryOrbs() {
-        if (window.mapManager && window.mapManager.isInitialized) {
-            window.mapManager.toggleMemoryOrbs();
         }
     }
 
@@ -230,14 +224,14 @@ class TravelJournalApp {
         try {
             await storage.saveMemory(memory);
             showNotification('Note saved!');
-            
+
             document.getElementById('text-modal').classList.add('hidden');
             document.getElementById('text-note').value = '';
-            
+
             if (window.mapManager && position) {
                 window.mapManager.addMemoryMarker(memory);
             }
-            
+
             statsTracker.incrementMemories();
 
         } catch (error) {
@@ -363,7 +357,7 @@ window.requestLocationPermission = async function () {
         const position = await gpsTracker.getCurrentPosition();
         document.getElementById('gps-permission-alert').classList.add('hidden');
         showNotification('Location access granted!', 2000);
-        
+
         if (window.mapManager && window.mapManager.map) {
             window.mapManager.map.setView([position.lat, position.lng], 15);
             window.mapManager.addUserMarker(position.lat, position.lng);
@@ -374,7 +368,7 @@ window.requestLocationPermission = async function () {
 };
 
 // DEV: Clear hotspots and force refresh
-window.clearHotspots = function() {
+window.clearHotspots = function () {
     localStorage.removeItem('hotspots');
     localStorage.removeItem('hotspots_last_fetch');
     console.log('✓ Cleared hotspots. Reload page to fetch fresh data from Geoapify.');

@@ -28,8 +28,8 @@ class StatsTracker {
         if (savedStats && Object.keys(savedStats).length > 0) {
             this.stats = { ...this.stats, ...savedStats };
         }
-
-        // Load all-time stats from localStorage
+        
+        // Load all-time stats from localStorage as backup
         const allTimeStats = storage.getItem('allTimeStats');
         if (allTimeStats) {
             this.stats.allTimeDistance = allTimeStats.distance || 0;
@@ -37,21 +37,24 @@ class StatsTracker {
             this.stats.xp = allTimeStats.xp || 0;
             this.stats.xpToNextLevel = allTimeStats.xpToNextLevel || 100;
         }
-
+        
         this.updateUI();
     }
 
     async saveStats() {
-        const today = new Date().toISOString().split('T')[0];
-        await storage.saveDailyStats(this.stats);
-
-        // Save all-time stats
-        storage.setItem('allTimeStats', {
-            distance: this.stats.allTimeDistance,
-            level: this.stats.level,
-            xp: this.stats.xp,
-            xpToNextLevel: this.stats.xpToNextLevel
-        });
+        try {
+            await storage.saveDailyStats(this.stats);
+            
+            // Save all-time stats to localStorage as backup
+            storage.setItem('allTimeStats', {
+                distance: this.stats.allTimeDistance,
+                level: this.stats.level,
+                xp: this.stats.xp,
+                xpToNextLevel: this.stats.xpToNextLevel
+            });
+        } catch (error) {
+            console.error('Error saving stats:', error);
+        }
     }
 
     addSteps(steps = 1) {
@@ -119,16 +122,18 @@ class StatsTracker {
         showNotification(`🎉 Level Up! You are now Level ${this.stats.level}`, 5000);
         
         // Check achievements
-        achievementsManager.checkAchievements();
+        if (typeof achievementsManager !== 'undefined') {
+            achievementsManager.checkAchievements();
+        }
     }
 
     startTimeTracking() {
         let lastTime = Date.now();
         
         setInterval(() => {
-            if (gpsTracker.isTracking) {
+            if (gpsTracker && gpsTracker.isTracking) {
                 const currentTime = Date.now();
-                const elapsed = (currentTime - lastTime) / 1000; // seconds
+                const elapsed = Math.round((currentTime - lastTime) / 1000); // Round to seconds
                 
                 this.stats.timeWalkedToday += elapsed;
                 this.updateUI();
@@ -141,30 +146,44 @@ class StatsTracker {
 
     updateUI() {
         // Bottom bar
-        document.getElementById('step-count').textContent = this.stats.stepsToday;
-        document.getElementById('distance-traveled').textContent = 
-            (this.stats.distanceToday / 1000).toFixed(2);
-        document.getElementById('user-level').textContent = `Lv. ${this.stats.level}`;
+        const stepCount = document.getElementById('step-count');
+        if (stepCount) stepCount.textContent = Math.round(this.stats.stepsToday);
+        
+        const distanceTraveled = document.getElementById('distance-traveled');
+        if (distanceTraveled) distanceTraveled.textContent = (this.stats.distanceToday / 1000).toFixed(2);
+        
+        const userLevel = document.getElementById('user-level');
+        if (userLevel) userLevel.textContent = `Lv. ${this.stats.level}`;
 
         // Stats dashboard
-        document.getElementById('total-steps-today').textContent = this.stats.stepsToday;
-        document.getElementById('distance-today').textContent = 
-            `${(this.stats.distanceToday / 1000).toFixed(2)} km`;
-        document.getElementById('highest-altitude').textContent = 
-            `${this.stats.highestAltitude} m`;
-        document.getElementById('places-visited').textContent = this.stats.placesVisited;
-        document.getElementById('all-time-distance').textContent = 
-            `${(this.stats.allTimeDistance / 1000).toFixed(2)} km`;
-        document.getElementById('time-walked').textContent = 
-            formatDuration(this.stats.timeWalkedToday);
+        const totalStepsToday = document.getElementById('total-steps-today');
+        if (totalStepsToday) totalStepsToday.textContent = Math.round(this.stats.stepsToday);
+        
+        const distanceToday = document.getElementById('distance-today');
+        if (distanceToday) distanceToday.textContent = `${(this.stats.distanceToday / 1000).toFixed(2)} km`;
+        
+        const highestAltitude = document.getElementById('highest-altitude');
+        if (highestAltitude) highestAltitude.textContent = `${Math.round(this.stats.highestAltitude)} m`;
+        
+        const placesVisited = document.getElementById('places-visited');
+        if (placesVisited) placesVisited.textContent = Math.round(this.stats.placesVisited);
+        
+        const allTimeDistance = document.getElementById('all-time-distance');
+        if (allTimeDistance) allTimeDistance.textContent = `${(this.stats.allTimeDistance / 1000).toFixed(2)} km`;
+        
+        const timeWalked = document.getElementById('time-walked');
+        if (timeWalked) timeWalked.textContent = formatDuration(Math.round(this.stats.timeWalkedToday));
         
         // Calculate average speed
-        const avgSpeed = this.stats.timeWalkedToday > 0 
-            ? (this.stats.distanceToday / 1000) / (this.stats.timeWalkedToday / 3600) 
+        const avgSpeed = this.stats.timeWalkedToday > 0
+            ? (this.stats.distanceToday / 1000) / (this.stats.timeWalkedToday / 3600)
             : 0;
-        document.getElementById('avg-speed').textContent = `${avgSpeed.toFixed(1)} km/h`;
         
-        document.getElementById('total-memories').textContent = this.stats.memoriesSaved;
+        const avgSpeedElem = document.getElementById('avg-speed');
+        if (avgSpeedElem) avgSpeedElem.textContent = `${avgSpeed.toFixed(1)} km/h`;
+        
+        const totalMemories = document.getElementById('total-memories');
+        if (totalMemories) totalMemories.textContent = Math.round(this.stats.memoriesSaved);
     }
 
     getStats() {
