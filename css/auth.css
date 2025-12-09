@@ -251,45 +251,14 @@ body {
 
 .auth-btn.google {
     background: white;
-    color: #4285f4;
-    border: 2px solid #e2e8f0;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
+    color: #db4437;
+    border: 2px solid var(--border-color);
 }
 
 .auth-btn.google:hover {
-    background: #f8fafc;
-    border-color: #4285f4;
-    box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
-}
-
-.auth-btn.google svg {
-    width: 20px;
-    height: 20px;
-}
-
-.divider {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    margin: 24px 0;
-}
-
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.divider span {
-    padding: 0 16px;
-    color: var(--text-light);
-    font-size: 14px;
-    font-weight: 600;
+    background: #db4437;
+    color: white;
+    border-color: #db4437;
 }
 
 .auth-btn.facebook {
