@@ -1,4 +1,4 @@
-// Enhanced Geoapify Service with GeoJSON Support
+// Geoapify Service with GeoJSON Support
 class GeoapifyService {
     constructor() {
         this.apiKey = '199b4ac789c040c180ad396100269fdd';
@@ -6,9 +6,8 @@ class GeoapifyService {
         this.staticMapUrl = 'https://maps.geoapify.com/v1/staticmap';
     }
 
-    // ============================================
-    // 1. PLACES API with GeoJSON
-    // ============================================
+
+    // 1. PLACES API with GeoJSON from geopify
     async fetchNearbyPlaces(lat, lng, categories = [], radius = 5000) {
         try {
             const categoriesParam = categories.length > 0 
@@ -17,7 +16,6 @@ class GeoapifyService {
 
             const url = `${this.baseUrl}/places?categories=${categoriesParam}&filter=circle:${lng},${lat},${radius}&limit=100&apiKey=${this.apiKey}`;
             
-            console.log('Fetching from Geoapify:', url);
             
             const response = await fetch(url);
             
@@ -32,13 +30,11 @@ class GeoapifyService {
                 return [];
             }
 
-            console.log(`Geoapify returned ${data.features.length} places`);
 
-            // Convert GeoJSON to our hotspot format
+            // Convert GeoJSON to hotspot format
             return data.features.map(feature => this.convertGeoJSONToHotspot(feature));
 
         } catch (error) {
-            console.error('Error fetching places from Geoapify:', error);
             return [];
         }
     }
@@ -54,7 +50,7 @@ class GeoapifyService {
         return {
             id: props.place_id || generateId(),
             name: props.name || props.address_line1 || 'Unknown Place',
-            lat: coords[1],  // GeoJSON is [lng, lat]
+            lat: coords[1],  // GeoJSON [lng, lat]
             lng: coords[0],
             category: mainCategory,
             description: this.generateDescription(props),
@@ -78,7 +74,7 @@ class GeoapifyService {
     extractMainCategory(categories) {
         if (!categories || categories.length === 0) return 'tourism';
 
-        // Priority order for main category
+        //main category
         const priorityMap = {
             'beach': 'beach',
             'catering': 'catering',
@@ -109,9 +105,8 @@ class GeoapifyService {
         return 0;
     }
 
-    // ============================================
+
     // 2. REVERSE GEOCODING API
-    // ============================================
     async reverseGeocode(lat, lng) {
         try {
             const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${this.apiKey}`;
@@ -129,14 +124,12 @@ class GeoapifyService {
 
             return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         } catch (error) {
-            console.error('Reverse geocode error:', error);
             return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         }
     }
 
-    // ============================================
+
     // 3. ROUTING API
-    // ============================================
     async getRoute(startLat, startLng, endLat, endLng, mode = 'walk') {
         try {
             const url = `https://api.geoapify.com/v1/routing?waypoints=${startLat},${startLng}|${endLat},${endLng}&mode=${mode}&apiKey=${this.apiKey}`;
@@ -144,7 +137,6 @@ class GeoapifyService {
             const response = await fetch(url);
             
             if (!response.ok) {
-                console.error('Routing API error:', response.status);
                 return null;
             }
             
@@ -165,14 +157,11 @@ class GeoapifyService {
             };
 
         } catch (error) {
-            console.error('Routing error:', error);
             return null;
         }
     }
 
-    // ============================================
     // 4. AUTOCOMPLETE API
-    // ============================================
     async autocomplete(text, lat, lng, limit = 5) {
         try {
             const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&bias=proximity:${lng},${lat}&limit=${limit}&apiKey=${this.apiKey}`;
@@ -203,14 +192,12 @@ class GeoapifyService {
             });
 
         } catch (error) {
-            console.error('Autocomplete error:', error);
             return [];
         }
     }
 
-    // ============================================
+
     // Helper Methods
-    // ============================================
     generateDescription(props) {
         // Try to get description from raw data
         if (props.datasource?.raw?.description) {

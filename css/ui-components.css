@@ -195,7 +195,7 @@
     color: white;
 }
 
-/* Category Filters - new */
+/* Category Filters */
 .category-filters-container {
     position: fixed;
     right: 16px;
@@ -426,7 +426,7 @@
     z-index: 1000;
 }
 
-/* Theme Switcher - Expandable */
+/* Theme Switcher  */
 .theme-switcher-container {
     position: fixed;
     left: 16px;

@@ -64,16 +64,6 @@
     position: relative;
 }
 
-@keyframes ripple {
-    0% {
-        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4),
-            0 0 0 8px rgba(99, 102, 241, 0.3);
-    }
-    100% {
-        box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.3),
-            0 0 0 16px rgba(99, 102, 241, 0);
-    }
-}
 
 /* Route line */
 .route-line {
@@ -133,7 +123,7 @@
     color: #94a3b8;
 }
 
-/* FIXED: Hotspot Popup with Better Button Layout */
+/* Hotspot Popup with Better Button Layout */
 .hotspot-popup {
     padding: 12px;
     min-width: 220px;
@@ -152,7 +142,7 @@
     color: #64748b;
 }
 
-/* IMPROVED: Button layout in popup */
+/* Button layout in popup */
 .hotspot-popup > div:last-child {
     display: grid;
     grid-template-columns: 25% 25% 25%;
@@ -184,7 +174,7 @@
     font-size: 12px;
 }
 
-/* Make wishlist button square on mobile */
+/* wishlist button square */
 @media (max-width: 480px) {
     .hotspot-popup > div:last-child {
         grid-template-columns: 25% 25% 25%;

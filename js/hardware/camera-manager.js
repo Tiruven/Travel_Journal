@@ -45,7 +45,6 @@ class CameraManager {
 
             return true;
         } catch (error) {
-            console.error('Camera error:', error);
             
             if (error.name === 'NotAllowedError') {
                 showNotification('Camera access denied', 3000);
@@ -175,7 +174,7 @@ class CameraManager {
             this.closeModal();
             this.retakePhoto();
             
-            // Update map with new memory (check if mapManager exists)
+            // Update map with new memory 
             if (window.mapManager && window.mapManager.isInitialized && position) {
                 window.mapManager.addMemoryMarker(memory);
             }
@@ -184,7 +183,6 @@ class CameraManager {
             statsTracker.incrementMemories();
             
         } catch (error) {
-            console.error('Error saving photo:', error);
             showNotification('Failed to save photo', 3000);
         }
     }

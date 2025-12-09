@@ -1,5 +1,4 @@
-// Hotspot Manager with Auto-Reload on Location Change
-
+// Hotspot Manager
 class HotspotManager {
     constructor() {
         this.hotspots = [];
@@ -47,7 +46,6 @@ class HotspotManager {
             );
 
             if (distance > this.RELOAD_DISTANCE) {
-                console.log(`Moved ${(distance / 1000).toFixed(2)}km - reloading hotspots...`);
                 await this.reloadHotspotsForLocation(position);
             }
         }
@@ -79,7 +77,6 @@ class HotspotManager {
                     time: this.lastFetchTime
                 }));
 
-                console.log(`Loaded ${newHotspots.length} new hotspots`);
                 showNotification(`Found ${newHotspots.length} places nearby!`, 3000);
 
                 if (window.mapManager && window.mapManager.isInitialized) {
@@ -87,7 +84,6 @@ class HotspotManager {
                 }
             }
         } catch (error) {
-            console.error('Error reloading hotspots:', error);
         }
     }
 
@@ -142,7 +138,6 @@ class HotspotManager {
         const savedHotspots = storage.getItem('hotspots');
 
         if (savedHotspots && savedHotspots.length > 0) {
-            console.log(`Loaded ${savedHotspots.length} hotspots from storage`);
             this.hotspots = savedHotspots;
 
             await this.syncVisitedHotspots();
@@ -155,7 +150,6 @@ class HotspotManager {
             const position = await gpsTracker.getCurrentPosition();
 
             if (position && geoapifyService.apiKey === '199b4ac789c040c180ad396100269fdd') {
-                console.log('Fetching hotspots from Geoapify...');
 
                 try {
                     this.hotspots = await geoapifyService.fetchNearbyPlaces(
@@ -166,7 +160,6 @@ class HotspotManager {
                     );
 
                     if (this.hotspots.length > 0) {
-                        console.log(`✓ Loaded ${this.hotspots.length} hotspots from Geoapify`);
                         storage.setItem('hotspots', this.hotspots);
 
                         await this.syncVisitedHotspots();
@@ -182,17 +175,14 @@ class HotspotManager {
                             time: this.lastFetchTime
                         }));
                     } else {
-                        console.log('No hotspots found from Geoapify, generating demo hotspots');
                         this.hotspots = this.generateDemoHotspots(position.lat, position.lng);
                         storage.setItem('hotspots', this.hotspots);
                     }
                 } catch (error) {
-                    console.error('Geoapify error:', error);
                     this.hotspots = this.generateDemoHotspots(position.lat, position.lng);
                     storage.setItem('hotspots', this.hotspots);
                 }
             } else if (position) {
-                console.log('Generating demo hotspots...');
                 this.hotspots = this.generateDemoHotspots(position.lat, position.lng);
                 storage.setItem('hotspots', this.hotspots);
             }
@@ -201,14 +191,12 @@ class HotspotManager {
         return this.hotspots;
     }
 
-    // WISHLIST METHODS - CLEANED UP
+    // WISHLIST METHODS
     async loadWishlist() {
         try {
             const wishlistData = await storage.getWishlist();
             this.wishlist = wishlistData.map(item => item.hotspot_api_id);
-            console.log('✓ Wishlist loaded from database:', this.wishlist.length, 'items');
         } catch (error) {
-            console.error('Load wishlist error:', error);
             this.wishlist = [];
         }
     }
@@ -216,14 +204,12 @@ class HotspotManager {
     async addToWishlist(hotspotId) {
         const hotspot = this.getHotspotById(hotspotId);
         if (!hotspot) {
-            console.error('Hotspot not found:', hotspotId);
             return;
         }
 
         try {
             // Check if already in wishlist
             if (this.wishlist.includes(hotspotId)) {
-                console.log('Already in wishlist');
                 return;
             }
 
@@ -233,14 +219,12 @@ class HotspotManager {
             // Update local array
             this.wishlist.push(hotspotId);
 
-            console.log('✓ Added to wishlist:', hotspot.name, 'Total:', this.wishlist.length);
-            showNotification('❤️ Added to wishlist!', 2000);
+            showNotification(' Added to wishlist!', 2000);
 
             // Trigger UI updates
             this.notifyWishlistChange();
 
         } catch (error) {
-            console.error('Add to wishlist error:', error);
             showNotification('Failed to add to wishlist', 3000);
         }
     }
@@ -253,14 +237,12 @@ class HotspotManager {
             // Update local array
             this.wishlist = this.wishlist.filter(id => id !== hotspotId);
 
-            console.log('✓ Removed from wishlist:', hotspotId, 'Total:', this.wishlist.length);
             showNotification('Removed from wishlist', 2000);
 
             // Trigger UI updates
             this.notifyWishlistChange();
 
         } catch (error) {
-            console.error('Remove from wishlist error:', error);
             showNotification('Failed to remove from wishlist', 3000);
         }
     }
@@ -291,12 +273,9 @@ class HotspotManager {
     // VISITED HOTSPOTS
     async syncVisitedHotspots() {
         try {
-            console.log('=== SYNCING VISITED HOTSPOTS ===');
             const visited = await storage.getVisitedHotspots();
             const visitedIds = visited.map(v => v.hotspot_api_id);
 
-            console.log('Visited hotspots from database:', visitedIds.length);
-            console.log('IDs:', visitedIds);
 
             let syncedCount = 0;
             this.hotspots.forEach(hotspot => {
@@ -306,10 +285,7 @@ class HotspotManager {
                 }
             });
 
-            console.log('✓ Synced', syncedCount, 'visited hotspots to local data');
-            console.log('==============================');
         } catch (error) {
-            console.error('Sync visited hotspots error:', error);
         }
     }
 
@@ -321,15 +297,11 @@ class HotspotManager {
                 hotspot.visited = true;
 
                 try {
-                    console.log('=== MARKING AS VISITED ===');
-                    console.log('Hotspot:', hotspot.name);
-                    console.log('ID:', hotspotId);
 
                     // Save to Supabase database
                     const result = await storage.markHotspotAsVisited(hotspot);
-                    console.log('✓ Saved to database:', result);
 
-                    // Save to localStorage as backup
+                    // Save to localStorage ( backup )
                     storage.setItem('hotspots', this.hotspots);
 
                     if (typeof statsTracker !== 'undefined') {
@@ -342,12 +314,9 @@ class HotspotManager {
 
                     // Get total visited count
                     const visitedCount = this.getVisitedHotspots().length;
-                    console.log('Total visited hotspots:', visitedCount);
-                    console.log('========================');
 
                     showNotification(`✓ Visited: ${hotspot.name}`, 3000);
                 } catch (error) {
-                    console.error('❌ Mark visited error:', error);
                     hotspot.visited = false;
                     showNotification('Failed to mark as visited', 3000);
                 }
@@ -355,7 +324,6 @@ class HotspotManager {
                 showNotification(`Already visited: ${hotspot.name}`, 2000);
             }
         } else {
-            console.error(`Hotspot not found: ${hotspotId}`);
         }
     }
 

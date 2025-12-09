@@ -1,4 +1,4 @@
-// js/utils/helpers.js
+
 // Show notification toast
 function showNotification(message, duration = 3000) {
     const toast = document.getElementById('notification-toast');
@@ -101,7 +101,7 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
-// Debounce function
+// Debounce function - limit function call
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -114,7 +114,7 @@ function debounce(func, wait) {
     };
 }
 
-// Throttle function
+// Throttle function - limit function run
 function throttle(func, limit) {
     let inThrottle;
     return function(...args) {
@@ -133,7 +133,6 @@ async function requestPermission(permissionName) {
             const result = await navigator.permissions.query({ name: permissionName });
             return result.state;
         } catch (e) {
-            console.error(`Permission query failed for ${permissionName}:`, e);
             return 'prompt';
         }
     }

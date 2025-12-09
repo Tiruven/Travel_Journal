@@ -6,9 +6,9 @@ class SupabaseStorage {
         this.audioBucket = 'audio';
     }
 
-    /**
-     * Upload photo to Supabase Storage
-     */
+
+     // Upload photo to Supabase Storage
+
     async uploadPhoto(file, userId) {
         try {
             const fileExt = file.name.split('.').pop();
@@ -30,14 +30,13 @@ class SupabaseStorage {
 
             return publicUrl;
         } catch (error) {
-            console.error('Photo upload error:', error);
             throw error;
         }
     }
 
-    /**
-     * Upload photo from base64 data URL
-     */
+
+    // * Upload photo from base64 data URL
+
     async uploadPhotoFromDataUrl(dataUrl, userId) {
         try {
             // Convert data URL to blob
@@ -63,14 +62,13 @@ class SupabaseStorage {
 
             return publicUrl;
         } catch (error) {
-            console.error('Photo upload from data URL error:', error);
             throw error;
         }
     }
 
-    /**
-     * Upload audio to Supabase Storage
-     */
+
+    // * Upload audio to Supabase Storage
+
     async uploadAudio(blob, userId) {
         try {
             const fileName = `${userId}/${Date.now()}.webm`;
@@ -92,14 +90,13 @@ class SupabaseStorage {
 
             return publicUrl;
         } catch (error) {
-            console.error('Audio upload error:', error);
             throw error;
         }
     }
 
-    /**
-     * Delete photo from storage
-     */
+
+    // * Delete photo from storage
+
     async deletePhoto(photoUrl) {
         try {
             // Extract file path from URL
@@ -113,14 +110,13 @@ class SupabaseStorage {
 
             if (error) throw error;
         } catch (error) {
-            console.error('Photo delete error:', error);
             throw error;
         }
     }
 
-    /**
-     * Delete audio from storage
-     */
+
+    // * Delete audio from storage
+
     async deleteAudio(audioUrl) {
         try {
             // Extract file path from URL
@@ -134,7 +130,6 @@ class SupabaseStorage {
 
             if (error) throw error;
         } catch (error) {
-            console.error('Audio delete error:', error);
             throw error;
         }
     }

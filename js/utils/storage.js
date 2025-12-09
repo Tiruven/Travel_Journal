@@ -13,7 +13,6 @@ class StorageManager {
             this.currentUserId = user?.id;
             return true;
         } catch (error) {
-            console.error('Storage init error:', error);
             return false;
         }
     }
@@ -30,10 +29,8 @@ class StorageManager {
         return this.currentUserId;
     }
 
-    // ============================================
-    // MEMORIES
-    // ============================================
 
+    // MEMORIES
     async saveMemory(memory) {
         try {
             const userId = await this.getCurrentUserId();
@@ -77,7 +74,6 @@ class StorageManager {
 
             return data.id;
         } catch (error) {
-            console.error('Save memory error:', error);
             throw error;
         }
     }
@@ -101,7 +97,7 @@ class StorageManager {
 
             if (error) throw error;
 
-            // Convert to format expected by app
+            // Convert to format
             return data.map(memory => ({
                 id: memory.id,
                 type: memory.type,
@@ -116,7 +112,6 @@ class StorageManager {
                 hotspot_category: memory.hotspot_category
             }));
         } catch (error) {
-            console.error('Get memories error:', error);
             return [];
         }
     }
@@ -153,15 +148,12 @@ class StorageManager {
 
             if (error) throw error;
         } catch (error) {
-            console.error('Delete memory error:', error);
             throw error;
         }
     }
 
-    // ============================================
-    // VISITED HOTSPOTS
-    // ============================================
 
+    // VISITED HOTSPOTS
     async markHotspotAsVisited(hotspot) {
         try {
             const userId = await this.getCurrentUserId();
@@ -188,10 +180,8 @@ class StorageManager {
 
             if (error) throw error;
 
-            console.log('✓ Visited hotspot saved to database:', data);
             return data;
         } catch (error) {
-            console.error('❌ Mark visited error:', error);
             throw error;
         }
     }
@@ -200,7 +190,6 @@ class StorageManager {
         try {
             const userId = await this.getCurrentUserId();
             if (!userId) {
-                console.log('No user ID, returning empty visited list');
                 return [];
             }
 
@@ -212,10 +201,8 @@ class StorageManager {
 
             if (error) throw error;
 
-            console.log('✓ Loaded', data?.length || 0, 'visited hotspots from database');
             return data || [];
         } catch (error) {
-            console.error('Get visited hotspots error:', error);
             return [];
         }
     }
@@ -234,15 +221,12 @@ class StorageManager {
 
             return !!data;
         } catch (error) {
-            console.error('Check visited error:', error);
             return false;
         }
     }
 
-    // ============================================
-    // WISHLIST
-    // ============================================
 
+    // WISHLIST
     async addToWishlist(hotspot) {
         try {
             const userId = await this.getCurrentUserId();
@@ -265,16 +249,13 @@ class StorageManager {
             if (error) {
                 // Check if already exists
                 if (error.code === '23505') {
-                    console.log('Item already in wishlist');
                     return null;
                 }
                 throw error;
             }
 
-            console.log('Added to wishlist in DB:', data);
             return data;
         } catch (error) {
-            console.error('Add to wishlist error:', error);
             throw error;
         }
     }
@@ -292,9 +273,7 @@ class StorageManager {
 
             if (error) throw error;
 
-            console.log('Removed from wishlist in DB:', hotspotApiId);
         } catch (error) {
-            console.error('Remove from wishlist error:', error);
             throw error;
         }
     }
@@ -312,10 +291,8 @@ class StorageManager {
 
             if (error) throw error;
 
-            console.log('Loaded wishlist from DB:', data);
             return data || [];
         } catch (error) {
-            console.error('Get wishlist error:', error);
             return [];
         }
     }
@@ -335,15 +312,12 @@ class StorageManager {
             if (error) throw error;
             return !!data;
         } catch (error) {
-            console.error('Check wishlist error:', error);
             return false;
         }
     }
 
-    // ============================================
-    // DAILY STATS
-    // ============================================
 
+    // DAILY STATS
     async saveDailyStats(stats) {
         try {
             const userId = await this.getCurrentUserId();
@@ -368,13 +342,12 @@ class StorageManager {
 
             if (error) throw error;
 
-            // Also update user profile totals
+            //  update user profile totals
             await this.updateUserProfileStats(stats);
 
             return data;
         } catch (error) {
-            console.error('Save daily stats error:', error);
-            // Don't throw - just log and continue
+
             return null;
         }
     }
@@ -396,7 +369,6 @@ class StorageManager {
 
             if (error) throw error;
         } catch (error) {
-            console.error('Update profile stats error:', error);
         }
     }
 
@@ -427,15 +399,12 @@ class StorageManager {
 
             return {};
         } catch (error) {
-            console.error('Get stats error:', error);
             return {};
         }
     }
 
-    // ============================================
-    // ACHIEVEMENTS
-    // ============================================
 
+    // ACHIEVEMENTS
     async saveAchievement(achievement) {
         try {
             const userId = await this.getCurrentUserId();
@@ -448,11 +417,11 @@ class StorageManager {
                     achievement_key: achievement.id,
                     title: achievement.name,
                     description: achievement.description,
-                    progress: Math.round(achievement.progress || 0), // Round to integer
-                    target: Math.round(achievement.requirement.value || 0), // Round to integer
+                    progress: Math.round(achievement.progress || 0), // integer
+                    target: Math.round(achievement.requirement.value || 0), // integer
                     unlocked: achievement.unlocked || false,
                     unlocked_at: achievement.unlocked ? new Date().toISOString() : null,
-                    reward: Math.round(achievement.reward || 0) // Round to integer
+                    reward: Math.round(achievement.reward || 0) //integer
                 }], { onConflict: 'user_id,achievement_key' })
                 .select()
                 .single();
@@ -460,8 +429,7 @@ class StorageManager {
             if (error) throw error;
             return data;
         } catch (error) {
-            console.error('Save achievement error:', error);
-            // Don't throw - just log and continue
+
             return null;
         }
     }
@@ -492,7 +460,6 @@ class StorageManager {
                 unlockedAt: ach.unlocked_at
             }));
         } catch (error) {
-            console.error('Get achievements error:', error);
             return [];
         }
     }
@@ -509,10 +476,8 @@ class StorageManager {
         return icons[key] || 'fa-trophy';
     }
 
-    // ============================================
+ 
     // ROUTE POINTS
-    // ============================================
-
     async saveRoutePoint(point) {
         try {
             const userId = await this.getCurrentUserId();
@@ -535,7 +500,6 @@ class StorageManager {
             if (error) throw error;
             return data.id;
         } catch (error) {
-            console.error('Save route point error:', error);
         }
     }
 
@@ -565,15 +529,12 @@ class StorageManager {
                 timestamp: new Date(point.timestamp).getTime()
             }));
         } catch (error) {
-            console.error('Get today route error:', error);
             return [];
         }
     }
 
-    // ============================================
-    // DEVICE LOGS
-    // ============================================
 
+    // DEVICE LOGS
     async logDeviceInfo(deviceInfo) {
         try {
             const userId = await this.getCurrentUserId();
@@ -594,19 +555,15 @@ class StorageManager {
 
             if (error) throw error;
         } catch (error) {
-            console.error('Log device info error:', error);
         }
     }
 
-    // ============================================
-    // LEGACY SUPPORT (LocalStorage fallback)
-    // ============================================
 
+    // LEGACY SUPPORT (LocalStorage fallback)
     setItem(key, value) {
         try {
             localStorage.setItem(key, JSON.stringify(value));
         } catch (e) {
-            console.error('LocalStorage error:', e);
         }
     }
 
@@ -615,7 +572,6 @@ class StorageManager {
             const item = localStorage.getItem(key);
             return item ? JSON.parse(item) : null;
         } catch (e) {
-            console.error('LocalStorage error:', e);
             return null;
         }
     }

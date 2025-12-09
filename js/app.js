@@ -1,4 +1,4 @@
-// Main Application - FIXED
+// Main Application
 
 class TravelJournalApp {
     constructor() {
@@ -10,9 +10,7 @@ class TravelJournalApp {
         showLoading(true);
 
         try {
-            console.log('Waiting for storage...');
             await storage.waitForReady();
-            console.log('Storage ready');
 
             await this.initializeManagers();
             this.setupEventListeners();
@@ -21,10 +19,9 @@ class TravelJournalApp {
 
             this.isInitialized = true;
             showLoading(false);
-            showNotification('Welcome to AR Travel Journal!', 3000);
+            showNotification('Welcome to Travel Journal!', 3000);
 
         } catch (error) {
-            console.error('App initialization error:', error);
             showLoading(false);
             showNotification('Failed to initialize app: ' + error.message, 5000);
         }
@@ -38,30 +35,23 @@ class TravelJournalApp {
         }
 
         const user = JSON.parse(currentUser);
-        console.log('Logged in as:', user.username);
     }
 
     async initializeManagers() {
         try {
-            console.log('Initializing map...');
 
-            // IMPORTANT: Initialize mapManager globally
+            // Initialize mapManager globally
             if (!window.mapManager) {
                 window.mapManager = new MapManager();
             }
 
             await window.mapManager.init();
-            console.log('Map initialized');
 
             // Load wishlist after map is initialized
             await hotspotManager.syncWishlist();
-            console.log('Wishlist synced');
 
-            console.log('Initializing motion sensors...');
             await motionSensors.start();
-            console.log('Motion sensors initialized');
         } catch (error) {
-            console.error('Manager initialization error:', error);
             throw error;
         }
     }
@@ -235,7 +225,6 @@ class TravelJournalApp {
             statsTracker.incrementMemories();
 
         } catch (error) {
-            console.error('Error saving note:', error);
             showNotification('Failed to save note', 3000);
         }
     }
@@ -341,7 +330,7 @@ class TravelJournalApp {
     }
 }
 
-// Initialize app when DOM is ready - ONLY ONCE
+// Initialize app when DOM is ready
 let app = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -351,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Add this global function for GPS permission
+//global function for GPS permission
 window.requestLocationPermission = async function () {
     try {
         const position = await gpsTracker.getCurrentPosition();
@@ -367,10 +356,9 @@ window.requestLocationPermission = async function () {
     }
 };
 
-// DEV: Clear hotspots and force refresh
+// Clear hotspots and force refresh - for clearing (test)
 window.clearHotspots = function () {
     localStorage.removeItem('hotspots');
     localStorage.removeItem('hotspots_last_fetch');
-    console.log('✓ Cleared hotspots. Reload page to fetch fresh data from Geoapify.');
     location.reload();
 };

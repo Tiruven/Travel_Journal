@@ -1,4 +1,4 @@
-// Auth Guard for Protected Pages
+// Auth Guard
 (async function() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     
@@ -6,7 +6,7 @@
                        window.location.pathname.includes('register.html');
     
     if (!session && !isAuthPage) {
-        // Not logged in and trying to access protected page
+        // Not logged in
         window.location.href = 'login.html';
     } else if (session && isAuthPage) {
         // Logged in but on auth page

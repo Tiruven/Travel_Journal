@@ -287,7 +287,7 @@ textarea {
     margin: 8px 0;
 }
 
-/* GPS Accuracy Indicator - FIXED POSITIONING */
+/* GPS Accuracy Indicator*/
 .gps-accuracy-indicator {
     position: fixed;
     top: 70px;
@@ -380,7 +380,7 @@ textarea {
     to { transform: rotate(360deg); }
 }
 
-/* Device Info Button - REPOSITIONED */
+/* Device Info Button*/
 .device-info-btn {
     position: fixed;
     left: 16px;
@@ -399,18 +399,18 @@ textarea {
     float: left;
 }
 
-/* Device Info Panel - ADJUSTED */
+/* Device Info Panel */
 .device-info-panel {
     position: fixed;
     left: 0;
-    top: 130px; /* Moved down to avoid GPS indicator */
+    top: 130px; 
     width: 300px;
     max-height: calc(100vh - 200px);
     background: rgba(255, 255, 255, 0.98);
     border-radius: 0 16px 16px 0;
     padding: 20px;
     box-shadow: var(--shadow-lg);
-    z-index: 999; /* Below GPS indicator */
+    z-index: 999;
     overflow-y: auto;
     animation: slideInLeft 0.3s ease;
 }

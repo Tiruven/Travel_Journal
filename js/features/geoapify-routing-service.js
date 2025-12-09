@@ -1,4 +1,4 @@
-// Geoapify Routing Service - NEW
+// Geoapify Routing Service
 
 class GeoapifyRoutingService {
     constructor() {
@@ -45,7 +45,7 @@ class GeoapifyRoutingService {
             }
 
             const url = `${this.baseUrl}?${params.toString()}`;
-            console.log('Fetching route from:', url);
+            
 
             const response = await fetch(url);
             
@@ -63,14 +63,12 @@ class GeoapifyRoutingService {
             return this.parseRoute(this.currentRoute);
 
         } catch (error) {
-            console.error('Error getting route:', error);
+            
             throw error;
         }
     }
 
-    /**
-     * Parse route data into usable format
-     */
+    //Parse route data into usable format
     parseRoute(routeFeature) {
         const props = routeFeature.properties;
         const geometry = routeFeature.geometry;
@@ -88,9 +86,8 @@ class GeoapifyRoutingService {
         };
     }
 
-    /**
-     * Get turn-by-turn instructions
-     */
+    
+    //turn-by-turn instruction
     async getRouteWithInstructions(start, end, mode = 'walk') {
         try {
             const route = await this.getRoute(start, end, mode, {
@@ -124,7 +121,7 @@ class GeoapifyRoutingService {
             };
 
         } catch (error) {
-            console.error('Error getting route with instructions:', error);
+            
             throw error;
         }
     }
@@ -181,7 +178,7 @@ class GeoapifyRoutingService {
         instructions.forEach((instruction, index) => {
             if (!instruction.coordinates) return;
 
-            // Create custom icon for turn marker
+            // custom icon for turn marker
             const icon = L.divIcon({
                 className: 'turn-marker',
                 html: `<div class="turn-marker-inner">${index + 1}</div>`,
@@ -256,7 +253,7 @@ class GeoapifyRoutingService {
             return this.parseRoute(data.features[0]);
 
         } catch (error) {
-            console.error('Error getting multi-waypoint route:', error);
+            
             throw error;
         }
     }
@@ -372,7 +369,7 @@ class GeoapifyRoutingService {
      * Recalculate route if user goes off track
      */
     async recalculateRoute(currentPosition, destination, mode = 'walk') {
-        console.log('Recalculating route from current position...');
+        
         return await this.getRouteWithInstructions(
             currentPosition,
             destination,

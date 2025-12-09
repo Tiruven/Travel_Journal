@@ -1,4 +1,4 @@
-// Hotspots Explorer Page with Wishlist Filter
+// Hotspots Explorer Page
 
 class HotspotsExplorer {
     constructor() {
@@ -11,7 +11,7 @@ class HotspotsExplorer {
             search: ''
         };
         this.userPosition = null;
-        this.wishlistView = false; // Track wishlist filter state
+        this.wishlistView = false; 
         this.init();
     }
 
@@ -19,7 +19,7 @@ class HotspotsExplorer {
         this.showLoading(true);
 
         try {
-            // Check if dependencies are loaded
+            
             if (typeof storage === 'undefined') {
                 throw new Error('Storage not loaded');
             }
@@ -33,7 +33,7 @@ class HotspotsExplorer {
             }
 
             await hotspotManager.loadHotspots();
-            await hotspotManager.syncWishlist(); // Sync wishlist from database
+            await hotspotManager.syncWishlist(); // Sync
 
             this.hotspots = hotspotManager.hotspots;
             console.log(`Loaded ${this.hotspots.length} hotspots for display`);
@@ -153,7 +153,7 @@ class HotspotsExplorer {
             });
         });
 
-        // Wishlist button in header - TOGGLE FILTER
+        // Wishlist button in header
         const wishlistBtn = document.getElementById('wishlist-filter-btn');
         if (wishlistBtn) {
             wishlistBtn.addEventListener('click', () => {
@@ -429,20 +429,13 @@ class HotspotsExplorer {
     }
 
     async toggleWishlist(hotspotId) {
-        console.log('=== TOGGLE WISHLIST ===');
-        console.log('Hotspot ID:', hotspotId);
-        console.log('Currently in wishlist?', hotspotManager.isInWishlist(hotspotId));
 
         if (hotspotManager.isInWishlist(hotspotId)) {
-            console.log('Removing from wishlist...');
             await hotspotManager.removeFromWishlist(hotspotId);
         } else {
-            console.log('Adding to wishlist...');
             await hotspotManager.addToWishlist(hotspotId);
         }
 
-        console.log('New wishlist:', hotspotManager.wishlist);
-        console.log('======================');
 
         this.updateStats();
         this.applyFilters();
@@ -454,17 +447,13 @@ class HotspotsExplorer {
     }
 
     async markAsVisited(hotspotId) {
-        console.log('=== HOTSPOTS PAGE: MARK AS VISITED ===');
-        console.log('Hotspot ID:', hotspotId);
 
         await hotspotManager.markHotspotAsVisited(hotspotId);
 
-        console.log('Updating stats and filters...');
         this.updateStats();
         this.applyFilters();
         this.showDetail(hotspotId);
 
-        console.log('===================================');
     }
 
     navigateToHotspot(hotspotId) {

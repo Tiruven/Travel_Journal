@@ -1,4 +1,4 @@
-// Route Drawer - Fixed to prevent lines across map on reload
+// Route Drawer
 
 class RouteDrawer {
     constructor() {
@@ -20,9 +20,8 @@ class RouteDrawer {
         const isNewSession = !lastSessionId || lastSessionId !== this.sessionId;
         
         if (isNewSession) {
-            console.log('New route drawing session');
             sessionStorage.setItem('route_session_id', this.sessionId);
-            // Don't load old route - start fresh
+            // start fresh
             this.routePoints = [];
         } else {
             // Same session - load current route
@@ -40,11 +39,9 @@ class RouteDrawer {
                 this.routePoints = points.map(p => [p.lat, p.lng]);
                 
                 if (this.routePoints.length > 0) {
-                    console.log(`Loaded ${this.routePoints.length} route points from session`);
                     this.drawRoute();
                 }
             } catch (e) {
-                console.error('Error loading route:', e);
                 this.routePoints = [];
             }
         }
@@ -53,11 +50,10 @@ class RouteDrawer {
     addPoint(lat, lng) {
         // Check if point is valid
         if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-            console.warn('Invalid route point:', lat, lng);
             return;
         }
 
-        // Check if too far from last point (possible GPS error)
+        // Check if too far from last point ( GPS error)
         if (this.routePoints.length > 0) {
             const lastPoint = this.routePoints[this.routePoints.length - 1];
             const distance = calculateDistance(
@@ -69,7 +65,6 @@ class RouteDrawer {
 
             // If more than 500m from last point, might be GPS error or new session
             if (distance > 500) {
-                console.warn(`Large jump detected: ${distance.toFixed(2)}m - starting new route segment`);
                 // Start a new route segment instead of connecting
                 this.clearRoute();
             }
@@ -77,7 +72,7 @@ class RouteDrawer {
 
         this.routePoints.push([lat, lng]);
         
-        // Keep only last 200 points to avoid memory issues
+        // Keep only last 200 points ( memory issues )
         if (this.routePoints.length > 200) {
             this.routePoints.shift();
         }
@@ -93,7 +88,7 @@ class RouteDrawer {
             this.map.removeLayer(this.routeLine);
         }
 
-        // Draw new line only if we have enough points
+        // Draw new line - if theres enough points
         if (this.routePoints.length > 1) {
             this.routeLine = L.polyline(this.routePoints, {
                 color: '#6366f1',

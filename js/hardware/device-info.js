@@ -1,4 +1,4 @@
-// js/hardware/device-info.js
+
 class DeviceInfoManager {
     constructor() {
         this.deviceInfo = {};

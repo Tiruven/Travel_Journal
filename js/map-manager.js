@@ -12,12 +12,11 @@ class MapManager {
         this.turnMarkers = [];
         this.isNavigating = false;
         this.navigationTarget = null;
-        this.offRouteThreshold = 50; // meters
+        this.offRouteThreshold = 50; 
     }
 
     async init() {
         if (this.isInitialized) {
-            console.warn('Map already initialized');
             return;
         }
 
@@ -65,7 +64,6 @@ class MapManager {
             weatherService.init(position);
 
         } catch (error) {
-            console.error('Map initialization error:', error);
             showNotification('Failed to get your location. Using default.');
 
             const mapDiv = document.getElementById('map');
@@ -165,7 +163,7 @@ class MapManager {
     `;
     }
 
-    // NEW: Start navigation to hotspot
+    // Start navigation to hotspot
     async startNavigation(hotspotId) {
         const hotspot = hotspotManager.getHotspotById(hotspotId);
         if (!hotspot) return;
@@ -184,7 +182,7 @@ class MapManager {
             const route = await routingService.getRouteWithInstructions(
                 { lat: userPos.lat, lng: userPos.lng },
                 { lat: hotspot.lat, lng: hotspot.lng },
-                'walk' // Default to walking
+                'walk' 
             );
 
             // Clear any existing route
@@ -217,12 +215,11 @@ class MapManager {
             this.startNavigationTracking();
 
         } catch (error) {
-            console.error('Navigation error:', error);
             showNotification('Failed to calculate route', 3000);
         }
     }
 
-    // NEW: Show navigation panel
+    // Show navigation panel
     showNavigationPanel(route, destination) {
         // Create or update navigation panel
         let navPanel = document.getElementById('navigation-panel');
@@ -270,7 +267,7 @@ class MapManager {
         navPanel.classList.add('visible');
     }
 
-    // NEW: Render turn-by-turn instructions
+    // Render turn-by-turn instructions
     renderInstructions(instructions) {
         if (!instructions || instructions.length === 0) {
             return '<p>No instructions available</p>';
@@ -290,7 +287,7 @@ class MapManager {
         `).join('');
     }
 
-    // NEW: Track navigation progress
+    // Track navigation progress
     startNavigationTracking() {
         if (this.navigationTrackingInterval) {
             clearInterval(this.navigationTrackingInterval);
@@ -337,12 +334,11 @@ class MapManager {
         }, 5000); // Check every 5 seconds
     }
 
-    // NEW: Recalculate route when off track
+    // Recalculate route when off track
     async recalculateRoute() {
         const userPos = gpsTracker.currentPosition;
         if (!userPos || !this.navigationTarget) return;
 
-        console.log('User went off route - recalculating...');
         showNotification('Recalculating route...', 2000);
 
         try {
@@ -368,11 +364,10 @@ class MapManager {
             this.showNavigationPanel(newRoute, this.navigationTarget.hotspot);
 
         } catch (error) {
-            console.error('Route recalculation error:', error);
         }
     }
 
-    // NEW: Highlight next instruction
+    //  Highlight next instruction
     highlightNextInstruction(currentPosition, instructions) {
         const nextInstruction = routingService.getNextInstruction(
             currentPosition,
@@ -395,7 +390,7 @@ class MapManager {
         }
     }
 
-    // NEW: Arrive at destination
+    //  Arrive at destination
     arriveAtDestination() {
         if (!this.navigationTarget) return;
 
@@ -412,7 +407,7 @@ class MapManager {
         }, 3000);
     }
 
-    // NEW: Clear navigation
+    // Clear navigation
     clearNavigation() {
         // Clear route from map
         if (routingService.routeLayer) {
@@ -574,7 +569,6 @@ class MapManager {
             const navTarget = JSON.parse(target);
             localStorage.removeItem('navigationTarget');
 
-            console.log('Navigation target found:', navTarget);
 
             // Wait for map to be ready
             setTimeout(() => {
@@ -636,7 +630,6 @@ class MapManager {
         });
 
         gpsTracker.onError((error) => {
-            console.error('GPS error:', error);
         });
     }
 
@@ -722,7 +715,7 @@ class MapManager {
         });
     }
 
-    // Add this method to MapManager class
+    //
     async syncWishlistFromDatabase() {
         await hotspotManager.syncWishlist();
         this.updateHotspotMarkers();

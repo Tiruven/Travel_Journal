@@ -18,8 +18,8 @@ class GPSTracker {
         };
         
         //Accuracy thresholds
-        this.MIN_ACCURACY = 50; // meters - reject positions with accuracy worse than this
-        this.MIN_MOVEMENT = 5; // meters - ignore movements smaller than this
+        this.MIN_ACCURACY = 50; // - reject positions with accuracy worse than this
+        this.MIN_MOVEMENT = 5; // - ignore movements smaller than this
         this.lastValidPosition = null;
         this.sessionStartTime = Date.now();
         
@@ -35,7 +35,7 @@ class GPSTracker {
         
         if (lastSession) {
             const timeSinceLastSession = now - parseInt(lastSession);
-            // If less than 5 minutes, consider it same session
+            // If less than 5 minutes, - same session
             this.isNewSession = timeSinceLastSession > 300000;
         }
         
@@ -43,14 +43,13 @@ class GPSTracker {
         
         // Clear route on new session to prevent lines across map
         if (this.isNewSession) {
-            console.log('New GPS session detected - clearing old route data');
             this.clearSessionRoute();
         }
     }
 
     //Clear route data from previous session
     clearSessionRoute() {
-        // Don't save route points from old sessions
+
         const today = new Date().toISOString().split('T')[0];
         const lastRouteDate = localStorage.getItem('last_route_date');
         
@@ -71,7 +70,6 @@ class GPSTracker {
             return true;
         }
 
-        console.log('Starting GPS tracking with high accuracy...');
         
         this.watchId = navigator.geolocation.watchPosition(
             (position) => this.handlePosition(position),
@@ -100,16 +98,12 @@ class GPSTracker {
                 return;
             }
 
-            console.log('Requesting current position with high accuracy...');
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    console.log('Position obtained:', position.coords);
-                    console.log(`Accuracy: ${position.coords.accuracy}m`);
                     
-                    // NEW: Check accuracy before accepting
+                    // Check accuracy
                     if (position.coords.accuracy > this.MIN_ACCURACY * 2) {
-                        console.warn(`Low accuracy (${position.coords.accuracy}m), but accepting for initial position`);
                     }
                     
                     this.currentPosition = {
@@ -126,12 +120,11 @@ class GPSTracker {
                     resolve(this.currentPosition);
                 },
                 (error) => {
-                    console.error('Geolocation error:', error);
                     
-                    // Provide fallback location
+                    // Provide fallback location - for error 
                     const fallbackPosition = {
-                        lat: -20.2674718,
-                        lng: 57.4796981,
+                        lat: -20.176931457328774, 
+                        lng: 57.467199105857894,
                         accuracy: 100,
                         altitude: null,
                         heading: null,
@@ -139,7 +132,6 @@ class GPSTracker {
                         timestamp: Date.now()
                     };
                     
-                    console.warn('Using fallback location:', fallbackPosition);
                     this.currentPosition = fallbackPosition;
                     this.lastValidPosition = fallbackPosition;
                     resolve(fallbackPosition);
@@ -162,14 +154,12 @@ class GPSTracker {
 
         //Check accuracy - reject inaccurate positions
         if (position.coords.accuracy > this.MIN_ACCURACY) {
-            console.warn(`Position rejected - accuracy too low: ${position.coords.accuracy}m (threshold: ${this.MIN_ACCURACY}m)`);
             // Keep using last valid position
             return;
         }
 
-        console.log(`Position update: Accuracy ${position.coords.accuracy}m`);
 
-        //Check if we've moved enough to record this position
+        //Check if location moved enough to record this position
         if (this.lastValidPosition) {
             const distance = calculateDistance(
                 this.lastValidPosition.lat,
@@ -179,8 +169,7 @@ class GPSTracker {
             );
 
             if (distance < this.MIN_MOVEMENT) {
-                console.log(`Movement too small (${distance.toFixed(2)}m), not recording`);
-                // Update current position but don't add to path
+                // Update current position
                 this.currentPosition = newPosition;
                 this.triggerPositionUpdate(newPosition);
                 return;
@@ -191,7 +180,6 @@ class GPSTracker {
         this.currentPosition = newPosition;
         this.lastValidPosition = newPosition;
 
-        console.log('Valid position recorded:', this.currentPosition);
 
         // Add to path only if it's a valid movement
         this.path.push(this.currentPosition);
@@ -206,10 +194,10 @@ class GPSTracker {
             );
 
             if (distance > this.MIN_MOVEMENT && distance < 200) {
-                // Only add distance if it's reasonable (between 5m and 200m)
+                // Only add distance between 5m and 200m)
                 this.totalDistance += distance;
 
-                // Save route point only for significant movements
+                // Save route point
                 this.saveRoutePoint({
                     lat: this.currentPosition.lat,
                     lng: this.currentPosition.lng,
@@ -219,24 +207,23 @@ class GPSTracker {
                     timestamp: this.currentPosition.timestamp
                 });
             } else if (distance >= 200) {
-                console.warn(`Suspiciously large jump: ${distance.toFixed(2)}m - possibly GPS error, not recording`);
-                // Don't save this point to route
+               
             }
         }
 
         this.triggerPositionUpdate(this.currentPosition);
     }
 
-    //Improved route point saving
+    // route point saving
     saveRoutePoint(point) {
         // Save to storage
         storage.saveRoutePoint(point);
         
-        // Also keep in session storage for current session
+        // 
         const sessionRoute = JSON.parse(sessionStorage.getItem('current_route_points') || '[]');
         sessionRoute.push(point);
         
-        // Keep only last 100 points in session
+        // Keep only (last 100 points) in session
         if (sessionRoute.length > 100) {
             sessionRoute.shift();
         }
@@ -259,7 +246,6 @@ class GPSTracker {
                 break;
         }
 
-        console.error('GPS Error:', message, error);
         this.triggerError(message);
     }
 
@@ -276,7 +262,6 @@ class GPSTracker {
             try {
                 cb(position);
             } catch (error) {
-                console.error('Error in position callback:', error);
             }
         });
     }
@@ -286,7 +271,6 @@ class GPSTracker {
             try {
                 cb(error);
             } catch (e) {
-                console.error('Error in error callback:', e);
             }
         });
     }
@@ -313,7 +297,7 @@ class GPSTracker {
         this.previousPosition = null;
     }
 
-    // NEW: Get accuracy status
+    // Get accuracy status
     getAccuracyStatus() {
         if (!this.currentPosition) return 'unknown';
         

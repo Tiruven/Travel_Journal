@@ -53,14 +53,13 @@ class StatsTracker {
                 xpToNextLevel: this.stats.xpToNextLevel
             });
         } catch (error) {
-            console.error('Error saving stats:', error);
         }
     }
 
     addSteps(steps = 1) {
         this.stats.stepsToday += steps;
         
-        // Estimate distance (average step = 0.762 meters)
+        // Estimate distance (avg = 0.762 meters)
         const distance = steps * 0.762;
         this.addDistance(distance);
         

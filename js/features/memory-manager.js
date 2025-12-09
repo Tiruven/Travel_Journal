@@ -2,7 +2,6 @@ class MemoryManager {
     constructor() {
         this.memories = [];
         this.currentFilter = 'all';
-        // Don't call init here
     }
 
     async init() {
@@ -15,7 +14,6 @@ class MemoryManager {
             this.memories = await storage.getAllMemories();
             return this.memories;
         } catch (error) {
-            console.error('Error loading memories:', error);
             return [];
         }
     }
@@ -27,7 +25,6 @@ class MemoryManager {
             this.memories.push(memory);
             return memory;
         } catch (error) {
-            console.error('Error adding memory:', error);
             throw error;
         }
     }
@@ -38,7 +35,6 @@ class MemoryManager {
             this.memories = this.memories.filter(m => m.id !== id);
             showNotification('Memory deleted');
         } catch (error) {
-            console.error('Error deleting memory:', error);
             showNotification('Failed to delete memory', 3000);
         }
     }
@@ -136,7 +132,7 @@ class MemoryManager {
     }
 
     showMemoryDetail(memory) {
-        // Create a detail modal
+        //detail modal
         const detailHTML = `
             <div class="modal" id="memory-detail-modal">
                 <div class="modal-content">

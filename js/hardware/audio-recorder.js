@@ -65,7 +65,6 @@ class AudioRecorder {
             showNotification('Recording started');
 
         } catch (error) {
-            console.error('Microphone error:', error);
             
             if (error.name === 'NotAllowedError') {
                 showNotification('Microphone access denied', 3000);
@@ -231,7 +230,6 @@ class AudioRecorder {
             statsTracker.incrementMemories();
 
         } catch (error) {
-            console.error('Error saving audio:', error);
             showNotification('Failed to save audio', 3000);
         }
     };

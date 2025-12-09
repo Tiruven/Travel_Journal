@@ -25,7 +25,6 @@ class MotionSensors {
                     return false;
                 }
             } catch (error) {
-                console.error('Permission error:', error);
                 return false;
             }
         }
@@ -39,7 +38,6 @@ class MotionSensors {
 
     startMotionTracking() {
         if (!window.DeviceMotionEvent) {
-            console.warn('Device motion not supported');
             return;
         }
 
@@ -50,7 +48,6 @@ class MotionSensors {
 
     startOrientationTracking() {
         if (!window.DeviceOrientationEvent) {
-            console.warn('Device orientation not supported');
             return;
         }
 
@@ -182,7 +179,6 @@ class MotionSensors {
                     }
                 }
             } catch (error) {
-                console.error('Error updating compass radar:', error);
             }
         });
     }

@@ -1,4 +1,4 @@
-// Weather Service Manager with Open-Meteo API
+// Weather Service ( Open-Meteo API )
 class WeatherService {
     constructor() {
         this.currentWeather = null;
@@ -19,7 +19,7 @@ class WeatherService {
 
     async fetchWeather(lat, lng) {
         try {
-            // Using Open-Meteo API (no API key needed!)
+            // Using Open-Meteo API
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,wind_speed_10m_max,rain_sum&timezone=auto`;
             
             const response = await fetch(url);
@@ -49,12 +49,10 @@ class WeatherService {
                 timestamp: Date.now()
             };
 
-            console.log('Weather data:', this.currentWeather);
             this.updateWeatherUI();
             return this.currentWeather;
 
         } catch (error) {
-            console.error('Weather fetch error:', error);
             this.useMockWeather();
             return this.currentWeather;
         }
